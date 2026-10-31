@@ -1,0 +1,487 @@
+# Game Shop systems table.
+#
+# One [[system]] per console. Fields:
+#   id        ES-DE folder name (what RetroArch's content/<id>/ uses)
+#   name      department name in the store
+#   maker     shelf grouping
+#   route     ftp (copy file into dest) | dpi (PS4 pkg install) | none (no PS5 target yet)
+#   dest      default PS5 folder; "{ra}" is the RetroArch title folder from settings.
+#             Empty with route=ftp means "you must choose a folder in Settings".
+#   exts      file extensions that are games for this system (lowercase, no dot)
+#   group     how multi-file games are grouped: file | cue | folder
+#   case      3D template: jewel | dvd | bd | cart-n64 | cart-snes | cart-nes | cart-gb |
+#             cart-genesis | cart-sms | cart-ds | cart-2600 | cart-lynx | mini-dvd | umd |
+#             arcade | switch | generic
+#   color     brand colour for generated covers and tile tints
+#   thumbs    libretro-thumbnails repository name ("" = none)
+#   note      shown on the department page when route is none or dest is empty
+
+ra_default = "/data/homebrew/PPSA99169"
+
+# ---------------- Sony ----------------
+[[system]]
+id = "psx"
+name = "PlayStation"
+maker = "Sony"
+route = "ftp"
+dest = "{ra}/content/psx"
+exts = ["chd", "cue", "pbp", "m3u", "ecm", "iso", "img"]
+group = "cue"
+case = "jewel"
+color = "#9aa3b2"
+thumbs = "Sony_-_PlayStation"
+
+[[system]]
+id = "ps2"
+name = "PlayStation 2"
+maker = "Sony"
+route = "ftp"
+dest = "{ra}/content/ps2"
+exts = ["iso", "chd", "cso", "zso", "cue", "gz"]
+group = "cue"
+case = "dvd"
+color = "#1f47c9"
+thumbs = "Sony_-_PlayStation_2"
+
+[[system]]
+id = "psp"
+name = "PlayStation Portable"
+maker = "Sony"
+route = "ftp"
+dest = "{ra}/content/psp"
+exts = ["iso", "cso", "chd", "pbp"]
+group = "file"
+case = "umd"
+color = "#2b2f3a"
+thumbs = "Sony_-_PlayStation_Portable"
+
+[[system]]
+id = "ps3"
+name = "PlayStation 3"
+maker = "Sony"
+route = "none"
+dest = ""
+exts = ["iso", "pkg"]
+group = "folder"
+case = "bd"
+color = "#0a0a0a"
+thumbs = "Sony_-_PlayStation_3"
+note = "No dependable PS3 emulator on the PS5 yet. The library lists these so nothing is lost; downloads are off."
+
+[[system]]
+id = "ps4"
+name = "PlayStation 4"
+maker = "Sony"
+route = "dpi"
+dest = ""
+exts = ["pkg"]
+group = "file"
+case = "bd"
+color = "#1e5bd8"
+thumbs = ""
+note = "PS4 packages install natively through etaHEN's Direct Package Installer. kstuff must be running."
+
+[[system]]
+id = "ps5"
+name = "PlayStation 5 images"
+maker = "Sony"
+route = "ftp"
+dest = "/data/homebrew"
+exts = ["exfat", "ffpkg", "ffpfs", "ffpfsc"]
+group = "file"
+case = "bd"
+color = "#f2f2f2"
+thumbs = ""
+note = "Game images that ShadowMount+ mounts from /data/homebrew."
+
+# ---------------- Nintendo ----------------
+[[system]]
+id = "nes"
+name = "Nintendo Entertainment System"
+maker = "Nintendo"
+route = "ftp"
+dest = "{ra}/content/nes"
+exts = ["nes", "fds", "unf", "unif", "zip", "7z"]
+group = "file"
+case = "cart-nes"
+color = "#8c8c8c"
+thumbs = "Nintendo_-_Nintendo_Entertainment_System"
+
+[[system]]
+id = "snes"
+name = "Super Nintendo"
+maker = "Nintendo"
+route = "ftp"
+dest = "{ra}/content/snes"
+exts = ["sfc", "smc", "fig", "swc", "zip", "7z"]
+group = "file"
+case = "cart-snes"
+color = "#6f6fbf"
+thumbs = "Nintendo_-_Super_Nintendo_Entertainment_System"
+
+[[system]]
+id = "n64"
+name = "Nintendo 64"
+maker = "Nintendo"
+route = "ftp"
+dest = "{ra}/content/n64"
+exts = ["z64", "n64", "v64", "zip", "7z"]
+group = "file"
+case = "cart-n64"
+color = "#2c9a3e"
+thumbs = "Nintendo_-_Nintendo_64"
+
+[[system]]
+id = "gb"
+name = "Game Boy"
+maker = "Nintendo"
+route = "ftp"
+dest = "{ra}/content/gb"
+exts = ["gb", "zip", "7z"]
+group = "file"
+case = "cart-gb"
+color = "#9bbc0f"
+thumbs = "Nintendo_-_Game_Boy"
+
+[[system]]
+id = "gbc"
+name = "Game Boy Color"
+maker = "Nintendo"
+route = "ftp"
+dest = "{ra}/content/gbc"
+exts = ["gbc", "zip", "7z"]
+group = "file"
+case = "cart-gb"
+color = "#7b3fd3"
+thumbs = "Nintendo_-_Game_Boy_Color"
+
+[[system]]
+id = "gba"
+name = "Game Boy Advance"
+maker = "Nintendo"
+route = "ftp"
+dest = "{ra}/content/gba"
+exts = ["gba", "zip", "7z"]
+group = "file"
+case = "cart-gb"
+color = "#4a3fb5"
+thumbs = "Nintendo_-_Game_Boy_Advance"
+
+[[system]]
+id = "nds"
+name = "Nintendo DS"
+maker = "Nintendo"
+route = "ftp"
+dest = "{ra}/content/nds"
+exts = ["nds", "zip", "7z"]
+group = "file"
+case = "cart-ds"
+color = "#c9c9c9"
+thumbs = "Nintendo_-_Nintendo_DS"
+
+[[system]]
+id = "n3ds"
+name = "Nintendo 3DS"
+maker = "Nintendo"
+route = "ftp"
+dest = "{ra}/content/n3ds"
+exts = ["3ds", "cci", "cia", "cxi"]
+group = "file"
+case = "cart-ds"
+color = "#d12c2c"
+thumbs = "Nintendo_-_Nintendo_3DS"
+
+[[system]]
+id = "gc"
+name = "GameCube"
+maker = "Nintendo"
+route = "ftp"
+dest = "{ra}/content/gc"
+exts = ["iso", "rvz", "gcz", "ciso", "gcm"]
+group = "file"
+case = "mini-dvd"
+color = "#5c3fa6"
+thumbs = "Nintendo_-_GameCube"
+
+[[system]]
+id = "wii"
+name = "Wii"
+maker = "Nintendo"
+route = "ftp"
+dest = "{ra}/content/wii"
+exts = ["iso", "rvz", "wbfs", "wad"]
+group = "file"
+case = "dvd"
+color = "#efefef"
+thumbs = "Nintendo_-_Wii"
+
+[[system]]
+id = "switch"
+name = "Nintendo Switch"
+maker = "Nintendo"
+route = "ftp"
+dest = ""
+exts = ["nsp", "xci", "nsz", "xcz"]
+group = "file"
+case = "switch"
+color = "#e60012"
+thumbs = ""
+note = "Plays in ProsperoEden (alpha, slow). Set its games folder under Settings → Destinations."
+
+# ---------------- Sega ----------------
+[[system]]
+id = "genesis"
+name = "Genesis / Mega Drive"
+maker = "Sega"
+route = "ftp"
+dest = "{ra}/content/genesis"
+exts = ["md", "gen", "smd", "bin", "zip", "7z"]
+group = "file"
+case = "cart-genesis"
+color = "#111111"
+thumbs = "Sega_-_Mega_Drive_-_Genesis"
+
+[[system]]
+id = "mastersystem"
+name = "Master System"
+maker = "Sega"
+route = "ftp"
+dest = "{ra}/content/mastersystem"
+exts = ["sms", "zip", "7z"]
+group = "file"
+case = "cart-sms"
+color = "#c41e1e"
+thumbs = "Sega_-_Master_System_-_Mark_III"
+
+[[system]]
+id = "gamegear"
+name = "Game Gear"
+maker = "Sega"
+route = "ftp"
+dest = "{ra}/content/gamegear"
+exts = ["gg", "zip", "7z"]
+group = "file"
+case = "cart-sms"
+color = "#1a1a1a"
+thumbs = "Sega_-_Game_Gear"
+
+[[system]]
+id = "segacd"
+name = "Sega CD"
+maker = "Sega"
+route = "ftp"
+dest = "{ra}/content/segacd"
+exts = ["chd", "cue", "iso"]
+group = "cue"
+case = "jewel"
+color = "#2a2a2a"
+thumbs = "Sega_-_Mega-CD_-_Sega_CD"
+
+[[system]]
+id = "sega32x"
+name = "Sega 32X"
+maker = "Sega"
+route = "ftp"
+dest = "{ra}/content/sega32x"
+exts = ["32x", "zip", "7z"]
+group = "file"
+case = "cart-genesis"
+color = "#222222"
+thumbs = "Sega_-_32X"
+
+[[system]]
+id = "saturn"
+name = "Saturn"
+maker = "Sega"
+route = "ftp"
+dest = "{ra}/content/saturn"
+exts = ["chd", "cue", "m3u"]
+group = "cue"
+case = "jewel"
+color = "#3b3b3b"
+thumbs = "Sega_-_Saturn"
+
+[[system]]
+id = "dreamcast"
+name = "Dreamcast"
+maker = "Sega"
+route = "ftp"
+dest = "{ra}/content/dreamcast"
+exts = ["chd", "gdi", "cdi", "cue"]
+group = "cue"
+case = "jewel"
+color = "#f0f0f0"
+thumbs = "Sega_-_Dreamcast"
+
+# ---------------- Microsoft ----------------
+[[system]]
+id = "xbox"
+name = "Xbox"
+maker = "Microsoft"
+route = "ftp"
+dest = ""
+exts = ["iso", "xiso"]
+group = "file"
+case = "dvd"
+color = "#107c10"
+thumbs = "Microsoft_-_Xbox"
+note = "Plays in XPSemu. Set its games folder under Settings → Destinations."
+
+[[system]]
+id = "xbox360"
+name = "Xbox 360"
+maker = "Microsoft"
+route = "none"
+dest = ""
+exts = ["iso", "xex", "god"]
+group = "folder"
+case = "dvd"
+color = "#5dc21e"
+thumbs = "Microsoft_-_Xbox_360"
+note = "Xbox 360 emulation on PS5 is a demo without a public build. Listed, downloads off."
+
+# ---------------- Arcade / others ----------------
+[[system]]
+id = "arcade"
+name = "Arcade"
+maker = "Arcade"
+route = "ftp"
+dest = "{ra}/content/arcade"
+exts = ["zip", "7z"]
+group = "file"
+case = "arcade"
+color = "#ff6a00"
+thumbs = "FBNeo_-_Arcade_Games"
+
+[[system]]
+id = "neogeo"
+name = "Neo Geo"
+maker = "Arcade"
+route = "ftp"
+dest = "{ra}/content/neogeo"
+exts = ["zip", "7z"]
+group = "file"
+case = "arcade"
+color = "#d4a017"
+thumbs = "SNK_-_Neo_Geo"
+
+[[system]]
+id = "pcengine"
+name = "PC Engine / TurboGrafx-16"
+maker = "NEC"
+route = "ftp"
+dest = "{ra}/content/pcengine"
+exts = ["pce", "sgx", "chd", "cue", "zip"]
+group = "cue"
+case = "cart-sms"
+color = "#f26522"
+thumbs = "NEC_-_PC_Engine_-_TurboGrafx_16"
+
+[[system]]
+id = "atari2600"
+name = "Atari 2600"
+maker = "Atari"
+route = "ftp"
+dest = "{ra}/content/atari2600"
+exts = ["a26", "bin", "zip"]
+group = "file"
+case = "cart-2600"
+color = "#6b3e1e"
+thumbs = "Atari_-_2600"
+
+[[system]]
+id = "atari7800"
+name = "Atari 7800"
+maker = "Atari"
+route = "ftp"
+dest = "{ra}/content/atari7800"
+exts = ["a78", "zip"]
+group = "file"
+case = "cart-2600"
+color = "#3a3a3a"
+thumbs = "Atari_-_7800"
+
+[[system]]
+id = "atarilynx"
+name = "Atari Lynx"
+maker = "Atari"
+route = "ftp"
+dest = "{ra}/content/atarilynx"
+exts = ["lnx", "zip"]
+group = "file"
+case = "cart-lynx"
+color = "#e8a000"
+thumbs = "Atari_-_Lynx"
+
+[[system]]
+id = "atarijaguar"
+name = "Atari Jaguar"
+maker = "Atari"
+route = "ftp"
+dest = "{ra}/content/atarijaguar"
+exts = ["j64", "jag", "zip"]
+group = "file"
+case = "cart-genesis"
+color = "#b01010"
+thumbs = "Atari_-_Jaguar"
+
+[[system]]
+id = "c64"
+name = "Commodore 64"
+maker = "Computers"
+route = "ftp"
+dest = "{ra}/content/c64"
+exts = ["d64", "t64", "prg", "crt", "g64", "zip"]
+group = "file"
+case = "generic"
+color = "#7a7a9a"
+thumbs = "Commodore_-_64"
+
+[[system]]
+id = "amiga"
+name = "Amiga"
+maker = "Computers"
+route = "ftp"
+dest = "{ra}/content/amiga"
+exts = ["adf", "hdf", "lha", "ipf", "zip"]
+group = "file"
+case = "generic"
+color = "#3c74c4"
+thumbs = "Commodore_-_Amiga"
+
+[[system]]
+id = "dos"
+name = "MS-DOS"
+maker = "Computers"
+route = "ftp"
+dest = "{ra}/content/dos"
+exts = []
+group = "folder"
+case = "generic"
+color = "#2d2d2d"
+thumbs = "DOS"
+
+[[system]]
+id = "scummvm"
+name = "ScummVM"
+maker = "Computers"
+route = "ftp"
+dest = "{ra}/content/scummvm"
+exts = []
+group = "folder"
+case = "generic"
+color = "#c86400"
+thumbs = "ScummVM"
+
+[[system]]
+id = "homebrew"
+name = "Payloads"
+maker = "Homebrew"
+route = "elf"
+dest = ""
+exts = ["elf", "bin"]
+group = "file"
+case = "generic"
+color = "#f5c451"
+thumbs = ""
+note = "Sent to the ELF loader on port 9021. Send kstuff, then ShadowMount+, then etaHEN after a reboot."

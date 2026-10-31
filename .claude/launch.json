@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "gameshop", "runtimeExecutable": ".venv/Scripts/python.exe", "runtimeArgs": ["-m", "gameshop"], "port": 8750 }
+  ]
+}

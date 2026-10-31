@@ -3,3 +3,5 @@ references/
 __pycache__/
 bin/
 dist/
+.venv/
+data/
