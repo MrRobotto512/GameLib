@@ -228,11 +228,28 @@ avoids copying altogether; big disc images still copy.
 - No pairing or encryption; etaHEN's own services are plain FTP/HTTP on your LAN. The agent
   binds to the LAN interface and refuses requests from outside its subnet.
 
+### 7.1 Tailscale (optional): PCs in different places, and downloads from away
+
+- **Peers over a tailnet.** mDNS does not cross Tailscale, so each agent also accepts peers by
+  name; with MagicDNS that is just `office-pc`, `basement-pc`. Agents already serve files over
+  HTTP, so a peer on the tailnet works like a peer on the LAN, only slower.
+- **The PS5 cannot join the tailnet.** The agent on the PS5's own LAN is the **gateway**: when
+  you download a game that lives on a remote PC, the local agent streams it from the remote
+  peer over Tailscale and writes it to the PS5 over FTP, so the PS5 only ever talks to a LAN
+  address. For DPI installs the local agent proxies the remote file under its own
+  `/files/<id>` URL for the same reason.
+- **Downloads from away.** Run the store from your phone or laptop on the tailnet against the
+  gateway agent; it queues the copy and the game is on the PS5 when you get home. To reach the
+  PS5's services directly from a remote PC (manual two-pane copies), the gateway PC can be a
+  Tailscale **subnet router** for the home LAN; optional, off by default.
+- **Trust.** Agents accept requests from the LAN subnet and the Tailscale range (100.64/10) only.
+  Tailscale's own ACLs decide which devices see which; Game Shop adds nothing on top.
+
 ## 8. Technology choices
 
 | Part | Choice | Why |
 |---|---|---|
-| Agent | **Python 3.13** (installed), FastAPI + uvicorn, stdlib `ftplib`, `zeroconf`, SQLite | Quick to build, same code on every PC; **PyInstaller** makes one `gameshop.exe` for PCs without Python. Tray/service mode later. |
+| Agent | **Python 3.13** (installed), FastAPI + uvicorn, stdlib `ftplib`, `zeroconf`, SQLite; peers by mDNS or by Tailscale MagicDNS name | Quick to build, same code on every PC; **PyInstaller** makes one `gameshop.exe` for PCs without Python. Tray/service mode later. |
 | Web UI | Plain HTML/CSS/JS, no build step | PS5 WebKit is the constraint; keeps the agent a single folder. |
 | PS5 side (v1) | None of our own code: etaHEN FTP + DPI + elfldr, RetroArch WebUI | Zero install, survives updates. |
 | PS5 side (v2, optional) | Drive **ps5upload-engine** (:19113) for exact free space / launch, or a small C payload on ps5-payload-dev/sdk (needs a Linux/WSL toolchain) | Only if v1's gaps matter. |
@@ -249,7 +266,7 @@ avoids copying altogether; big disc images still copy.
 - Tests: grouping rules, destination resolution, and a fake PS5 (local FTP + HTTP stub) so transfers test without the console.
 
 **Phase 2 — multi-PC and couch**
-- mDNS + static peers, merged library, per-peer file serving.
+- mDNS + static peers (incl. Tailscale names), merged library, per-peer file serving, gateway streaming for remote peers.
 - TV mode tuned on the PS5 browser (controller mapping, focus, 1080p layout).
 - Metadata enrichment (libretro `.rdb`, optional ScreenScraper/IGDB), screenshots on product pages, "On your PS5" department.
 - Payload shelf (resend kstuff / ShadowMount+ / etaHEN in order).
