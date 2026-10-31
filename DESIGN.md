@@ -3,11 +3,16 @@
 Copy games from the Windows PCs that hold your backup collections to a jailbroken PS5
 (firmware 13.60) over the home network, on demand, from the couch or from a PC.
 
-Status: design for review, revision 2, 2026-10-31. Nothing built yet.
+Status: design for review, revision 3, 2026-10-31. Nothing built yet.
 
-Revision 2 reflects two things learned after the first draft: the collection is mostly retro
+Revision 2 reflected two things learned after the first draft: the collection is mostly retro
 systems (PS1, PS2, PS3, PS4, Xbox 360, Switch, N64, Sega, …) rather than PS5 titles, and folder
 organisation on the PCs is personal, so system/destination mapping is **manual by design**.
+
+Revision 3 adds the product vision: Game Shop is a **storefront**. Consoles are departments, every
+game is a product page with a 3D render of its retail case or cartridge, and one **Download**
+button sends it to the folder chosen for that console in Settings. The look follows
+[prosperostore.net](https://prosperostore.net) / ProsperoStore (§4).
 
 ---
 
@@ -20,6 +25,7 @@ organisation on the PCs is personal, so system/destination mapping is **manual b
 | **PS5 fake packages (PPSA…) install on 13.60 but do not launch.** PS4 fake packages (CUSA…) and PS5 homebrew apps work. | ps5upload README + FAQ | PS4 backups are the only native "install" route. PS5 titles are out of scope unless they are game images for ShadowMount+ (kept as a secondary route). |
 | **Retro systems run in emulators that are PS5 homebrew titles under `/data/homebrew/<PPSA…>/`.** The big one is Mihawk's **RetroArch port**: 33 cores (PS1, PS2 via PS5SX2, PSP, N64, GameCube/Wii, every Sega system, arcade, Atari, …), content under `content/<system>/` using EmulationStation (ES-DE) folder names, BIOS under `system/`, a **WebUI on port 6769** with upload/library/forwarder APIs, and built-in **SMB** browsing of one share. Other emulators are separate titles: **PS5SX2** standalone (PS2, `/data/PCSX2/games/`), **ProsperoEden** (Switch, alpha, slow), **XPSemu** (original Xbox), a Xenia (Xbox 360) demo with no public build, RPCS3 (PS3) experimental. | PS5_RetroArch README/source, news coverage | The core job is **"put this file in that emulator's folder."** Destinations are fixed per emulator, so Game Shop ships a table of them and you only choose which of your folders feed which system. |
 | **ps5upload** (GPL‑3) already does the PS4/PS5 package and image work on 13.60. | references/ps5upload | Game Shop does not compete with it; it fills the retro, multi-PC, couch gap. |
+| **ProsperoStore** (GPL‑3, native PS5 app, title `PPSA99000`) and its site prosperostore.net are a homebrew *app* store: Discover hero, shelves, product page with a "Get this app" card and a gold **Download** button, controller legend at the bottom, a **TV mode** on the website. It accepts custom catalogs, but only over HTTPS, only in its `api/v1` schema, and it installs app zips into ShadowMount+ folders, not files into emulator folders. | references/ProsperoStore, prosperostore.net | We borrow the **design language**, not the app. The storefront is a web app the agent serves (works in the PS5 browser and on any PC/phone). A native fork of ProsperoStore stays a v3 option (§8). |
 
 ## 2. Goals and non-goals
 
@@ -73,9 +79,9 @@ organisation on the PCs is personal, so system/destination mapping is **manual b
   path in SQLite. No guessing from folder names unless you ask it to suggest.
 - **File server + transfer worker.** HTTP with `Range` support (what DPI needs) and a queue of
   FTP jobs to the PS5.
-- **Web UI.** Two skins over one API: *Desktop* and *Couch* (`/couch`: big tiles, D‑pad focus,
-  plain ES2017 so the PS5's WebKit renders it). The UI shows the **merged** library from every
-  peer; a peer's files are always served by that peer.
+- **Storefront.** One web app (§4) with a responsive layout and a **TV mode** (10‑foot UI,
+  D‑pad focus, plain ES2017 so the PS5's WebKit renders it). It shows the **merged** library from
+  every peer; a peer's files are always served by that peer.
 
 **Peer discovery.** mDNS (`_gameshop._tcp`) plus a static peer list for networks that block
 multicast.
@@ -83,9 +89,88 @@ multicast.
 **Transfers are jobs.** Each "Send to PS5" is a job record (item, destination, state, bytes,
 error) in SQLite. Jobs survive restarts and resume via FTP `REST`. UI polls `/api/jobs`.
 
-## 4. Systems matrix: where each system's content goes on the PS5
+## 4. The storefront
 
-The destination table is data (`systems.toml`), editable by you, with these defaults. `RA` =
+The user-facing product is a store. Nothing is bought; "Download" means *copy to my PS5*.
+
+### 4.1 Information architecture
+
+```
+Discover ─ hero (featured / recently added / "continue downloading") + shelves per console
+│
+├─ Departments  (one per console you have sources for; order and names editable)
+│    PlayStation · PlayStation 2 · PlayStation 4 · Nintendo 64 · Super Nintendo · Genesis …
+│    └─ grid of product tiles · search · sort (A–Z, recently added, size, region) · filters
+│         └─ Product page
+│              • 3D case / cartridge (rotates on focus, flips to the back)
+│              • title, system, region, year, publisher, genre, players, size, format
+│              • description + screenshots (when art is available)
+│              • [ Download ]  → destination shown under the button ("→ RetroArch / psx")
+│              • secondary: Download to… (any other destination) · Open folder on PC
+│              • state: Ready · Queued · Copying 43 % · On your PS5 ✓ · Not supported (PS3)
+│
+├─ Downloads  (the queue: ring + steps Queue → Copy → Verify → Done, speed, ETA; cancel; retry)
+├─ On your PS5  (what is already in each destination folder, free space per drive)
+└─ Settings
+     • PS5: address, scan, health of FTP / DPI / RetroArch WebUI
+     • Destinations: per console, the pre-chosen PS5 folder (defaults from the matrix, §5)
+     • Sources: this PC's folders → console (manual), peers found on the LAN
+     • Artwork: on/off, providers, cache size · Appearance: TV mode, reduce motion, sounds
+```
+
+### 4.2 Look and feel (from prosperostore.net / ProsperoStore)
+
+- Deep navy-to-violet gradient background, glass cards, **gold accent** for the primary action,
+  white display headings, grey metadata line (`Developer · Category · Version · Size` becomes
+  `Publisher · Region · Year · Size`).
+- Discover: a wide hero with an eyebrow label ("NEW IN PLAYSTATION 2"), big title, metadata, a
+  pill "View details" button and the artwork floating on the right over a blurred colour wash
+  made from the cover's palette; below, horizontal shelves of rounded tiles with a soft tinted
+  background per tile.
+- Product page: art left, facts and chips (region, format, size, players) under the title, a
+  right-hand "Get this game" card with a ring icon, a state word ("Ready"), the gold **Download**
+  button, and a line that names the destination folder.
+- TV mode: 1920×1080 layout, larger type, one focused element at a time with a bright outline,
+  L1/R1 switch departments, Cross opens, Triangle searches, Square opens Downloads, Circle backs
+  out. The PS5 browser maps the controller to arrow keys and Enter, so TV mode is a keyboard UI.
+- Motion: springy focus scale, slow idle rotation of the 3D case on the focused tile; respects
+  "reduce motion".
+
+### 4.3 Product art: 3D cases and cartridges
+
+- **Rendering** is CSS 3D in the browser (no WebGL, so the PS5 browser copes): a box built from
+  front, spine and back faces with the cover texture mapped on; cartridges are a flat slab with
+  a label face and a system-specific silhouette. One template per system family: PS1 jewel case,
+  PS2 blue DVD case, PS3 clear case, PS4 blue case, Switch red case, N64 grey cartridge, SNES/NES
+  cartridges, Genesis clamshell, GameCube mini case, Dreamcast jewel case, Xbox 360 green case,
+  generic case otherwise. Templates are SVG/CSS, themed per region (NTSC / PAL / JP).
+- **Cover art** comes from **libretro-thumbnails** (GitHub, per-system repositories with
+  `Named_Boxarts/`, `Named_Snaps/`, `Named_Titles/`, matched by No‑Intro / Redump names) and,
+  optionally, ScreenScraper or IGDB with your own API key. Matching is name-based with a
+  normaliser (strip region tags, "The", punctuation) and a manual "pick art" override. Art is
+  fetched by the **PC**, cached as WebP, served to the PS5 locally.
+- **Fallback** when no art is found: a generated cover with the title in large type over a
+  gradient taken from the console's brand colours, inside the matching case template, so the
+  shelf still looks finished (ProsperoStore does the same with icon colours).
+- **Metadata** (year, publisher, genre, players, description) comes from libretro's database
+  files (`.rdb`) and the same optional scrapers.
+
+### 4.4 Download semantics
+
+- **Download** = create a job for the item to its console's pre-chosen destination (Settings →
+  Destinations). The button is disabled with a reason when the PS5 is offline, the console has
+  no destination, or the item's system has no PS5 target (PS3, Xbox 360 today).
+- Multi-file games download as one unit; progress is per game, not per file.
+- Finished downloads are **remembered** ("On your PS5 ✓") by checking the destination over FTP
+  (name + size), not by trusting our own records, so hand-copied files count too.
+- "Download to…" offers every destination and a PS5 folder browser for one-offs.
+- After a RetroArch copy the agent asks RetroArch's WebUI (`/api/library/add`) to list the game
+  immediately when that WebUI is reachable; otherwise RetroArch sees it on its next scan.
+
+
+## 5. Systems matrix: where each system's content goes on the PS5
+
+The destination table is data (`systems.toml`), editable in Settings → Destinations, with these defaults. `RA` =
 `/data/homebrew/PPSA99169` (the RetroArch title folder; configurable in case yours differs).
 
 | Your system | Plays via | PS5 destination (default) | Formats the emulator takes | v1 status |
@@ -123,7 +208,7 @@ has a "share this source over SMB" helper (Windows file sharing on the chosen fo
 plus the exact server/share/folder to type into RetroArch's SMB page). For small ROMs this
 avoids copying altogether; big disc images still copy.
 
-## 5. Manual-first mapping
+## 6. Manual-first mapping
 
 - **Add source** → pick a folder → pick a system from the matrix (or "mixed"). Nothing is
   inferred without your say; a "Suggest systems" button offers guesses based on extensions and
@@ -135,7 +220,7 @@ avoids copying altogether; big disc images still copy.
 - **Unknown systems** (PS3, Xbox 360 today) stay visible in the library, greyed, so the
   collection view is complete; the day an emulator appears you add one row to `systems.toml`.
 
-## 6. PS5 connection model
+## 7. PS5 connection model
 
 - Enter the PS5's IP once, or **Scan** the subnet for `:1337` FTP and `:12800` "etaHEN".
 - Health panel: FTP / DPI v2 / DPI v1 / elfldr / RetroArch WebUI, each with a one-line fix hint
@@ -143,7 +228,7 @@ avoids copying altogether; big disc images still copy.
 - No pairing or encryption; etaHEN's own services are plain FTP/HTTP on your LAN. The agent
   binds to the LAN interface and refuses requests from outside its subnet.
 
-## 7. Technology choices
+## 8. Technology choices
 
 | Part | Choice | Why |
 |---|---|---|
@@ -151,36 +236,41 @@ avoids copying altogether; big disc images still copy.
 | Web UI | Plain HTML/CSS/JS, no build step | PS5 WebKit is the constraint; keeps the agent a single folder. |
 | PS5 side (v1) | None of our own code: etaHEN FTP + DPI + elfldr, RetroArch WebUI | Zero install, survives updates. |
 | PS5 side (v2, optional) | Drive **ps5upload-engine** (:19113) for exact free space / launch, or a small C payload on ps5-payload-dev/sdk (needs a Linux/WSL toolchain) | Only if v1's gaps matter. |
+| PS5 side (v3, optional) | **Native storefront**: fork ProsperoStore (GPL‑3, C++, controller UI already done) and teach it a "copy file to folder" item kind and plain-HTTP LAN catalogs | The best couch experience, but it needs the PS5 toolchain (prospero-clang / pacbrew under WSL) and can only be tested on the console. Decide after TV mode has been tried on the PS5. |
 | Repo | `D:\Game Shop`, git; `references/` is git-ignored clones used for reading | |
 
-## 8. Phased plan
+## 9. Phased plan
 
 **Phase 1 — core loop (first usable build)**
 - Agent + config, manual sources, indexer with multi-file grouping, SQLite.
 - FTP worker with partial-then-rename, resume, skip-if-present; `systems.toml` with the matrix.
 - PS4 `.pkg` install via DPI v2 (v1 fallback) from the agent's Range-capable file server.
-- Desktop UI: library grid with system filter, "Send to…", PS5 health, job queue, two-pane manual copy.
+- Storefront v1: Discover, departments, product page with 3D case and Download, Downloads queue, Settings (PS5, destinations, sources). Cover art from libretro-thumbnails with the generated-cover fallback. Two-pane manual copy under Settings → Advanced.
 - Tests: grouping rules, destination resolution, and a fake PS5 (local FTP + HTTP stub) so transfers test without the console.
 
 **Phase 2 — multi-PC and couch**
 - mDNS + static peers, merged library, per-peer file serving.
-- `/couch` UI tuned on the PS5 browser.
+- TV mode tuned on the PS5 browser (controller mapping, focus, 1080p layout).
+- Metadata enrichment (libretro `.rdb`, optional ScreenScraper/IGDB), screenshots on product pages, "On your PS5" department.
 - Payload shelf (resend kstuff / ShadowMount+ / etaHEN in order).
 - RetroArch WebUI hooks: library add, forwarder tiles; SMB share helper.
 
 **Phase 3 — polish**
 - Windows service / tray, PyInstaller release, auto-start.
 - Optional ps5upload-engine integration; ShadowMount+ image route refinements.
+- Evaluate the native ProsperoStore fork (v3) once TV mode has been used on the console.
 
-## 9. Risks and open questions
+## 10. Risks and open questions
 
 - **Emulator folder paths other than RetroArch** (PS5SX2 standalone, XPSemu, ProsperoEden) come from news articles, not from READMEs I could reach; they ship as editable defaults and the health page verifies each path exists over FTP before the first copy.
 - **DPI v2 is "WIP"** per etaHEN. DirectPackageInstaller uses it fine; v1 on 9090 is the fallback. Verify on your console early in Phase 1.
 - **FTP throughput** through etaHEN's server is unmeasured. ROMs are small; PS2/GC/PS4 images are not. If it is slow, Phase 3 can move big copies to ps5upload's engine.
-- **PS5 browser access on 13.60** alongside the Relapse page needs confirming. The couch UI also works from a phone.
+- **PS5 browser access on 13.60** alongside the Relapse page needs confirming. If the browser is awkward, TV mode still works from a phone or tablet, and the native fork (v3) becomes the priority.
+- **Art matching quality** depends on how your files are named. No‑Intro/Redump-style names match well; renamed files need the manual "pick art" override. The generated-cover fallback keeps the shelves consistent either way.
+- **CSS 3D on the PS5 browser**: WebKit supports `transform-style: preserve-3d`, but performance with dozens of rotating boxes is unknown; tiles use a flat pre-rendered case and only the focused tile animates.
 - **PS3 and Xbox 360** have no dependable PS5 target today. The library still shows them; nothing is promised.
 
-## 10. Sources
+## 11. Sources
 
 - Relapse exploit: [VideoCardz](https://videocardz.com/newz/ps5-13-60-jailbreak-released-almost-every-ps5-can-now-be-jailbroken), [Tom's Hardware](https://www.tomshardware.com/video-games/playstation/new-ps5-relapse-jailbreak-enables-homebrew-and-switch-emulation-but-is-hamstrung-by-rapidly-changing-firmware-revisions-jailbreak-unlocks-firmware-13-60-but-newer-games-already-demand-firmware-14-00)
 - etaHEN services and DPI v1 API: `references/etaHEN/README.md` ([GitHub](https://github.com/LightningMods/etaHEN)); DPI v2 call shape: `references/DirectPackageInstaller` ([GitHub](https://github.com/devcrono/DirectPackageInstaller))
@@ -189,4 +279,5 @@ avoids copying altogether; big disc images still copy.
 - PS5SX2 (PS2): [PC Games Hardware](https://www.pcgameshardware.de/Playstation-5-Konsolen-265878/News/PS2-Emulator-PS5SX2-Jailbreak-PCSX2-1555250/), [Hackaday](https://hackaday.com/2026/10/03/play-playstation-2-and-xbox-1-games-on-your-jailbroken-ps5/)
 - ProsperoEden (Switch): [Android Authority](https://androidauthority.com/prosperoeden-switch-emulator-playstation-5-3716603), [Notebookcheck](https://www.notebookcheck.net/You-can-now-play-Nintendo-Switch-games-on-your-PlayStation-5-but-there-s-a-small-catch.1415151.0.html)
 - Xbox / 360 / PS3 state: [Windows Central](https://www.windowscentral.com/gaming/xbox/xbox-360-and-og-xbox-games-are-now-running-on-ps5-thanks-to-a-new-emulator), [TweakTown](https://www.tweaktown.com/news/113874/a-jailbroken-ps5-can-now-run-original-xbox-games/index.html), [Windows Report](https://windowsreport.com/?p=1495348)
+- ProsperoStore app and catalog rules: `references/ProsperoStore` ([GitHub](https://github.com/blackbearreloaded/ProsperoStore)); site design: [prosperostore.net](https://prosperostore.net)
 - Payload SDK: [ps5-payload-dev/sdk](https://github.com/ps5-payload-dev/sdk)
