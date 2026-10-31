@@ -3,7 +3,7 @@
 Copy games from the Windows PCs that hold your backup collections to a jailbroken PS5
 (firmware 13.60) over the home network, on demand, from the couch or from a PC.
 
-Status: revision 3, 2026-10-31. Phases 1 and 2 are built (see README.md); Phase 3 is open.
+Status: revision 3, 2026-10-31. Phases 1 to 3 are built (see README.md); the items under "Deferred" below are open.
 
 Revision 2 reflected two things learned after the first draft: the collection is mostly retro
 systems (PS1, PS2, PS3, PS4, Xbox 360, Switch, N64, Sega, …) rather than PS5 titles, and folder
@@ -272,10 +272,16 @@ avoids copying altogether; big disc images still copy.
 - Payload shelf (resend kstuff / ShadowMount+ / etaHEN in order).
 - RetroArch WebUI hooks: library add, forwarder tiles; SMB share helper.
 
-**Phase 3 — polish**
-- Windows service / tray, PyInstaller release, auto-start.
-- Optional ps5upload-engine integration; ShadowMount+ image route refinements.
-- Evaluate the native ProsperoStore fork (v3) once TV mode has been used on the console.
+**Phase 3 — polish** (built 2026-10-31)
+- Game facts from libretro-database `.rdb` files (year, developer, publisher, genre, players, serial), fetched per system by the PC and cached; shown on tiles, the hero and product pages.
+- Tray app (`--tray`), one-file `GameShop.exe` (PyInstaller), logon autostart script.
+- TV mode restyled after ProsperoStore's native screens: landscape tiles with centred art, larger hero, section hints next to the tabs, controller legend.
+
+**Deferred (decided 2026-10-31, because the collection is retro-first)**
+- Building `.ffpfsc` / `.exfat` PS5 game images from folders on the PC (needs a port of ps5-dump-forge or shelling out to ps5upload's engine).
+- ps5upload-engine integration for exact free space, "add to home screen" and launch of PS5 titles.
+- The native ProsperoStore fork: decide after the web TV mode has been used on the console.
+- Exact free space on the PS5 over etaHEN's FTP (no reliable command); the UI says "unknown".
 
 ## 10. Risks and open questions
 

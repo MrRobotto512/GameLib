@@ -56,7 +56,7 @@
       (item.peer ? '<span class="peer-badge" title="On another PC">' + esc(item.peer_name) + '</span>' : '') +
       '<div class="art-wrap">' + caseHTML(item) + '</div>' +
       '<div class="t-title">' + esc(item.title) + '</div>' +
-      '<div class="t-sub"><span>' + esc(sys.name) + '</span>' + (item.region ? '<span>· ' + esc(item.region) + '</span>' : '') + '<span>· ' + fmtSize(item.size) + '</span></div></a>';
+      '<div class="t-sub"><span>' + esc(sys.name) + '</span>' + (item.facts && item.facts.year ? '<span>· ' + esc(item.facts.year) + '</span>' : item.region ? '<span>· ' + esc(item.region) + '</span>' : '') + '<span>· ' + fmtSize(item.size) + '</span></div></a>';
   }
   function shelfHTML(items) { return '<div class="shelf">' + items.map(tileHTML).join('') + '</div>'; }
   function scaleTiles(root) { $$('.tile .case', root).forEach(function (c) { c.style.setProperty('--scale', c.classList.contains('cart') ? '0.95' : '0.85'); }); }
@@ -74,8 +74,8 @@
       var sys = sysOf(hero.system);
       var html = '<section class="hero" style="--sys:' + esc(sys.color) + '"><div class="hero-text">' +
         '<div class="eyebrow">New in ' + esc(sys.name) + '</div><h1>' + esc(hero.title) + '</h1>' +
-        '<div class="meta">' + esc(sys.name) + (hero.region ? ' · ' + esc(hero.region) : '') + ' · ' + fmtSize(hero.size) + (hero.peer ? ' · on <b>' + esc(hero.peer_name) + '</b>' : '') + '</div>' +
-        '<div class="desc">' + esc(sys.note || ('Ready to copy to your PS5 with one button. It lands in ' + (hero.dest || 'the folder you choose') + '.')) + '</div>' +
+        '<div class="meta">' + (hero.facts && hero.facts.publisher ? esc(hero.facts.publisher) + ' · ' : '') + esc(sys.name) + (hero.facts && hero.facts.year ? ' · ' + esc(hero.facts.year) : hero.region ? ' · ' + esc(hero.region) : '') + ' · ' + fmtSize(hero.size) + (hero.peer ? ' · on <b>' + esc(hero.peer_name) + '</b>' : '') + '</div>' +
+        '<div class="desc">' + esc((hero.facts && hero.facts.description) || sys.note || ((hero.facts && hero.facts.genre ? hero.facts.genre + '. ' : '') + 'Ready to copy to your PS5 with one button. It lands in ' + (hero.dest || 'the folder you choose') + '.')) + '</div>' +
         '<a class="btn" href="#/game/' + hero.id + '" data-nav>⊙ &nbsp;View details</a>' +
         '<div class="hero-dots">' + d.recent.slice(0, 5).map(function (_, i) { return '<span class="' + (i === 0 ? 'on' : '') + '"></span>'; }).join('') + '</div>' +
         '</div><div class="hero-art"><div style="--scale:1.6">' + caseHTML(hero, { spin: true }) + '</div></div></section>';
@@ -128,16 +128,18 @@
       var sys = sysOf(it.system);
       var st = it.status || { state: 'ready' };
       var files = it.files.map(function (f) { return '<div>' + esc(f[0].split('/').pop()) + ' <span class="dim">' + fmtSize(f[1]) + '</span></div>'; }).join('');
-      var meta = it.meta || {};
-      var chips = [sys.name, it.region, (meta.ext || '').toUpperCase(), meta.category, meta.title_id, meta.disc ? 'Disc ' + meta.disc : ''].concat(it.tags || []).filter(Boolean);
+      var meta = it.meta || {}, facts = it.facts || {};
+      var chips = [sys.name, it.region, facts.genre, facts.players ? facts.players + (facts.players === 1 ? ' player' : ' players') : '', facts.rating, (meta.ext || '').toUpperCase(), meta.category, meta.title_id, meta.disc ? 'Disc ' + meta.disc : ''].concat(it.tags || []).filter(Boolean);
       var html = '<a class="muted" href="#/dept/' + it.system + '" data-nav>‹ ' + esc(sys.name) + '</a>' +
         '<div class="product" style="--sys:' + esc(sys.color) + '">' +
         '<div class="art-stage" id="stage">' + caseHTML(it, { spin: !state.tv }) + '</div>' +
         '<div><div class="eyebrow">' + esc(sys.maker) + '</div><h1>' + esc(it.title) + '</h1>' +
-        '<div class="meta">' + esc(sys.name) + (it.region ? ' · ' + esc(it.region) : '') + ' · ' + fmtSize(it.size) + (it.files.length > 1 ? ' · ' + it.files.length + ' files' : '') + '</div>' +
+        '<div class="meta">' + (facts.publisher ? esc(facts.publisher) + ' · ' : '') + esc(sys.name) + (facts.year ? ' · ' + esc(facts.year) : it.region ? ' · ' + esc(it.region) : '') + ' · ' + fmtSize(it.size) + (it.files.length > 1 ? ' · ' + it.files.length + ' files' : '') + '</div>' +
+        (facts.description ? '<p class="desc">' + esc(facts.description) + '</p>' : '') +
         '<div class="chips">' + chips.map(function (c) { return '<span class="pill">' + esc(c) + '</span>'; }).join('') + '</div>' +
         (it.system_note ? '<div class="note">' + esc(it.system_note) + '</div>' : '') +
-        '<dl class="facts"><dt>Files</dt><dd>' + files + '</dd><dt>' + (it.peer ? 'On the PC' : 'On this PC') + '</dt><dd>' + (it.peer ? '<b>' + esc(it.peer_name) + '</b> · ' : '') + esc(it.source) + '</dd>' +
+        '<dl class="facts">' + (facts.year ? '<dt>Released</dt><dd>' + esc(facts.year) + (facts.month ? '-' + ('0' + facts.month).slice(-2) : '') + '</dd>' : '') + (facts.developer ? '<dt>Developer</dt><dd>' + esc(facts.developer) + '</dd>' : '') + (facts.publisher ? '<dt>Publisher</dt><dd>' + esc(facts.publisher) + '</dd>' : '') + (facts.franchise ? '<dt>Series</dt><dd>' + esc(facts.franchise) + '</dd>' : '') + (facts.serial ? '<dt>Serial</dt><dd>' + esc(facts.serial) + '</dd>' : '') +
+        '<dt>Files</dt><dd>' + files + '</dd><dt>' + (it.peer ? 'On the PC' : 'On this PC') + '</dt><dd>' + (it.peer ? '<b>' + esc(it.peer_name) + '</b> · ' : '') + esc(it.source) + '</dd>' +
         (it.also_on && it.also_on.length ? '<dt>Also on</dt><dd>' + esc(it.also_on.join(', ')) + '</dd>' : '') + '<dt>Primary file</dt><dd>' + esc(it.rel) + '</dd>' +
         (meta.pkg_title ? '<dt>Package title</dt><dd>' + esc(meta.pkg_title) + '</dd>' : '') + (meta.content_id ? '<dt>Content ID</dt><dd>' + esc(meta.content_id) + '</dd>' : '') +
         (meta.app_version ? '<dt>Version</dt><dd>' + esc(meta.app_version) + '</dd>' : '') +

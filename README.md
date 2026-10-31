@@ -4,16 +4,20 @@ A storefront for your own game backups that delivers to a jailbroken PS5 (firmwa
 home network. Consoles are departments, every game is a product with a 3D case, and **Download**
 copies it to the folder its PS5 emulator reads. See [DESIGN.md](DESIGN.md) for the whole picture.
 
-Built so far (Phases 1 and 2): manual folder → console mapping, FTP copies into RetroArch and other
+Built so far (Phases 1 to 3): manual folder → console mapping, FTP copies into RetroArch and other
 emulator folders, PS4 package installs through etaHEN's Direct Package Installer, cover art,
-screenshots and title screens from libretro-thumbnails, a Downloads queue, a two-pane manual copy,
-a TV mode for the PS5 browser, **several PCs as one store** (found by mDNS or added by name, with
-this PC as the gateway that streams their games to the PS5), a **payload chain** sender, RetroArch
-**home-screen tiles**, and an SMB "play in place" helper.
+screenshots and title screens from libretro-thumbnails, game facts (year, developer, publisher,
+genre, players) from libretro-database, a Downloads queue, a two-pane manual copy, a TV mode for
+the PS5 browser, **several PCs as one store** (found by mDNS or added by name, with this PC as the
+gateway that streams their games to the PS5), a **payload chain** sender, RetroArch **home-screen
+tiles**, an SMB "play in place" helper, a **tray app**, a one-file **GameShop.exe** and autostart.
 
 ## Run it
 
-Requirements: Windows with Python 3.11+ (3.13 tested). On the PS5: the jailbreak chain you already
+**Easiest:** build or download `GameShop.exe` (see *One-file build* below), double-click it, and use
+the tray icon (gold diamond) to open the store. Everything it keeps lives in `%LOCALAPPDATA%\GameShop`.
+
+**From source:** Windows with Python 3.11+ (3.13 tested). On the PS5: the jailbreak chain you already
 use (kstuff, ShadowMount+, etaHEN) with etaHEN's FTP on, and Mihawk's RetroArch port for retro
 systems.
 
@@ -55,6 +59,23 @@ powershell -ExecutionPolicy Bypass -File tools\firewall.ps1
    PS5 only ever talks to this one.
 6. **Payloads**: add kstuff, ShadowMount+ and etaHEN in order under **Settings → Payloads** with a
    wait between them; **Load the chain** sends them after a reboot.
+
+## One-file build, tray and autostart
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\build.ps1
+```
+
+makes `dist\GameShop.exe` (PyInstaller, about 25 MB). Double-clicking it runs the tray app;
+`GameShop.exe --console` keeps a console window for logs, and `--port`, `--data`, `--open` work as
+with `python -m gameshop`. From source, `python -m gameshop --tray` is the same tray app.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\install-autostart.ps1
+```
+
+registers a logon task for the current user (no admin needed) that starts the exe if it exists,
+otherwise the venv's `pythonw -m gameshop --tray`. `-Remove` takes it away again.
 
 ## What goes where
 

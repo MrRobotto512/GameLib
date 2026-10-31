@@ -5,7 +5,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-HERE = Path(__file__).parent
+from .paths import resource_dir
 
 
 @dataclass(frozen=True)
@@ -49,7 +49,7 @@ class SystemsTable:
 
 
 def load_systems(path: Path | None = None) -> SystemsTable:
-    data = tomllib.loads((path or HERE / "systems.toml").read_text(encoding="utf-8"))
+    data = tomllib.loads((path or resource_dir() / "systems.toml").read_text(encoding="utf-8"))
     table = SystemsTable(ra_default=data.get("ra_default", "/data/homebrew/PPSA99169"))
     for raw in data.get("system", []):
         s = System(

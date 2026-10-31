@@ -241,3 +241,27 @@ body.tv .shots img { height: 210px; }
 .code { background: #0a0918; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 13px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
 code { background: rgba(255,255,255,.08); padding: 1px 6px; border-radius: 6px; font-size: 12px; }
 .row .dot { flex: none; }
+
+/* ---------- phase 3: TV mode after the native ProsperoStore screens ---------- */
+.tv-only { display: none; }
+body.tv .tv-only { display: inline-block; align-self: center; color: var(--muted); }
+.product .desc { color: #d9d6ea; font-size: 16px; line-height: 1.5; max-width: 60ch; margin: 14px 0 0; }
+body.tv .tile { flex-basis: 340px; height: 200px; border-radius: 22px; padding: 14px 20px; }
+body.tv .tile .art-wrap { inset: 0 0 56px 0; }
+body.tv .tile .case { --scale: .55 !important; }
+body.tv .tile .case.cart { --scale: .7 !important; }
+body.tv .tile .t-title { font-size: 20px; }
+body.tv .tile .t-sub { font-size: 14px; }
+body.tv .tiles { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+body.tv .tiles .tile { height: 210px; }
+body.tv .tile.focused, body.tv .tile:focus-visible { transform: scale(1.04); box-shadow: 0 0 0 3px #fff, 0 0 0 7px rgba(245,196,81,.55), 0 20px 50px rgba(0,0,0,.6) !important; }
+body.tv .hero { min-height: 440px; padding: 60px 70px; border-radius: 34px; }
+body.tv .hero-art { flex-basis: 560px; height: 380px; }
+body.tv .hero-art .case { --scale: 1.9 !important; }
+body.tv .hero .btn { padding: 16px 30px; font-size: 22px; }
+body.tv .hero .desc { font-size: 20px; }
+body.tv .legend { padding: 16px 48px; font-size: 20px; gap: 36px; }
+body.tv .legend .key { font-size: 22px; }
+body.tv .top .chip, body.tv #search-form { display: none; }
+body.tv .top .ps5-chip { display: flex; }
+body.tv h2 { font-size: 26px; }

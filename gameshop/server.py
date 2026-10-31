@@ -25,12 +25,14 @@ from .art import ArtCache
 from .config import ConfigStore, Source
 from .db import Database
 from .indexer import Indexer, scan_all
+from .metadata import MetadataStore
+from .paths import resource_dir
 from .peers import PeerDirectory
 from .ps5 import PS5Client, Health, RA_PORT, scan_subnet
 from .systems import load_systems
 from .transfer import TransferWorker
 
-WEB = Path(__file__).parent / "web"
+WEB = resource_dir() / "web"
 CHUNK = 1 << 20
 REMOTE_SEP = "~"          # remote item ids look like "<peer key>~<item id>"
 
@@ -47,6 +49,7 @@ class Agent:
         self.db = Database(self.data_dir / "gameshop.db")
         self.indexer = Indexer(self.systems)
         self.art = ArtCache(self.db, self.systems, self.data_dir / "art", enabled=lambda: self.store.config.art_enabled)
+        self.metadata = MetadataStore(self.db, self.systems, self.data_dir / "rdb", enabled=lambda: self.store.config.art_enabled)
         self.worker = TransferWorker(self.db, lambda: self.client(), self.file_url,
                                      skip_existing=lambda: self.store.config.skip_existing, after_ftp=self._after_ftp)
         self.peers = PeerDirectory(self.config.agent_id, self.config.name, lambda: self.config.port,
@@ -99,6 +102,7 @@ class Agent:
                 self.scanning = False
         if self.config.art_enabled:
             self.art.prefetch(self.db.items())
+            self.metadata.prefetch(self.db.items())
         return counts
 
     @staticmethod
@@ -173,6 +177,7 @@ class Agent:
             "art": bool(it.get("art")) if remote else self.art.path_for(it["id"]).exists(),
             "primary": posixpath.basename(it["rel"]),
             "core": s.core if s else "",
+            "facts": (it.get("facts") or {}) if remote else (self.metadata.get(it, fetch=with_status) or {}),
         }
         if with_status:
             view["status"] = self.status_for(it, route, dest)
@@ -362,7 +367,7 @@ def create_app(agent: Agent | None = None) -> FastAPI:
 
     @app.get("/api/peer/items")
     def peer_items():
-        return [{**it, "art": agent.art.path_for(it["id"]).exists()} for it in agent.db.items()]
+        return [{**it, "art": agent.art.path_for(it["id"]).exists(), "facts": agent.metadata.get(it, fetch=False) or {}} for it in agent.db.items()]
 
     @app.post("/api/peers/refresh")
     def peers_refresh():

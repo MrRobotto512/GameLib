@@ -11,11 +11,7 @@ from pathlib import Path
 from typing import Any
 
 
-def default_data_dir() -> Path:
-    env = os.environ.get("GAMESHOP_DATA")
-    if env:
-        return Path(env)
-    return Path(__file__).resolve().parent.parent / "data"
+from .paths import default_data_dir  # noqa: E402  (shared with the frozen build)
 
 
 @dataclass

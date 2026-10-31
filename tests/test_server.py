@@ -52,6 +52,7 @@ def test_end_to_end(tmp_path: Path, monkeypatch):
     _fake_ps4_pkg(lib / "ps4" / "game.pkg", "UP0001-CUSA12345_00-TESTGAME00000000", "Test Game")
     agent = Agent(tmp_path / "data")
     agent.store.config.art_enabled = False
+    agent.store.config.discovery = False
     with FakeFTP(tmp_path / "ps5") as ftp, FakeDPI() as dpi, Server(agent) as srv:
         monkeypatch.setattr(ps5mod, "FTP_PORT", ftp.port)
         monkeypatch.setattr(ps5mod, "DPI2_PORT", dpi.port)
