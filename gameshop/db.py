@@ -63,6 +63,12 @@ class Database:
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.executescript(SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        cols = {r["name"] for r in self.query("PRAGMA table_info(jobs)")}
+        if "opts" not in cols:
+            self.execute("ALTER TABLE jobs ADD COLUMN opts TEXT DEFAULT '{}'")
 
     # ---- generic helpers -------------------------------------------------
     @staticmethod
@@ -140,6 +146,7 @@ class Database:
         job.setdefault("state", "queued")
         job.setdefault("created", time.time())
         job["src"] = json.dumps(job["src"])
+        job["opts"] = json.dumps(job.get("opts") or {})
         cols = ", ".join(job)
         marks = ", ".join(":" + k for k in job)
         cur = self.execute(f"INSERT INTO jobs({cols}) VALUES({marks})", job)
@@ -148,6 +155,7 @@ class Database:
     @staticmethod
     def _job(row: dict[str, Any]) -> dict[str, Any]:
         row["src"] = json.loads(row["src"] or "[]")
+        row["opts"] = json.loads(row.get("opts") or "{}")
         return row
 
     def jobs(self, limit: int = 200) -> list[dict[str, Any]]:

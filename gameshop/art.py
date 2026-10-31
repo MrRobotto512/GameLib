@@ -62,45 +62,49 @@ class ArtCache:
         self._inflight: set[str] = set()
         self._lock = threading.Lock()
 
-    def path_for(self, item_id: str) -> Path:
-        return self.dir / f"{item_id}.png"
+    KINDS = {"box": "Named_Boxarts", "snap": "Named_Snaps", "title": "Named_Titles"}
 
-    def get(self, item: dict[str, Any], fetch: bool = True) -> Path | None:
-        """Cached cover path, fetching it now when allowed. None when there is none."""
-        p = self.path_for(item["id"])
+    def path_for(self, item_id: str, kind: str = "box") -> Path:
+        return self.dir / (f"{item_id}.png" if kind == "box" else f"{item_id}.{kind}.png")
+
+    def get(self, item: dict[str, Any], fetch: bool = True, kind: str = "box") -> Path | None:
+        """Cached image path, fetching it now when allowed. None when there is none."""
+        p = self.path_for(item["id"], kind)
         if p.exists():
             return p
-        row = self.db.art(item["id"])
+        key = item["id"] if kind == "box" else f"{item['id']}:{kind}"
+        row = self.db.art(key)
         if row and row["status"] == "missing" and time.time() - row["checked"] < RECHECK_MISSING_AFTER:
             return None
         if not fetch or not self.enabled():
             return None
-        return self.fetch(item)
+        return self.fetch(item, kind)
 
-    def fetch(self, item: dict[str, Any]) -> Path | None:
+    def fetch(self, item: dict[str, Any], kind: str = "box") -> Path | None:
+        key = item["id"] if kind == "box" else f"{item['id']}:{kind}"
         system = self.systems.get(item["system"])
-        if not system or not system.thumbs:
-            self.db.set_art(item["id"], "missing")
+        if not system or not system.thumbs or kind not in self.KINDS:
+            self.db.set_art(key, "missing")
             return None
         with self._lock:
-            if item["id"] in self._inflight:
+            if key in self._inflight:
                 return None
-            self._inflight.add(item["id"])
+            self._inflight.add(key)
         try:
             for name in candidates(item):
-                url = BASE.format(repo=system.thumbs, kind="Named_Boxarts",
+                url = BASE.format(repo=system.thumbs, kind=self.KINDS[kind],
                                   name=urllib.parse.quote(libretro_thumb_name(name)))
                 data = _get(url)
                 if data:
-                    p = self.path_for(item["id"])
+                    p = self.path_for(item["id"], kind)
                     p.write_bytes(data)
-                    self.db.set_art(item["id"], "ok", str(p))
+                    self.db.set_art(key, "ok", str(p))
                     return p
-            self.db.set_art(item["id"], "missing")
+            self.db.set_art(key, "missing")
             return None
         finally:
             with self._lock:
-                self._inflight.discard(item["id"])
+                self._inflight.discard(key)
 
     def prefetch(self, items: Iterable[dict[str, Any]], workers: int = 4) -> None:
         """Background: warm the cache for a list of items."""

@@ -120,10 +120,11 @@ class PS5Client:
 
     def upload(self, local: str, remote: str, progress: Callable[[int], None] | None = None,
                cancelled: Callable[[], bool] | None = None, skip_existing: bool = True) -> str:
-        """Copy one file. Writes <remote>.gameshop-partial, resumes it when present, renames at the end.
+        """Copy one file (a local path or an http(s) URL of a peer's file) to the PS5.
+        Writes <remote>.gameshop-partial, resumes it when present, renames at the end.
         Returns 'copied' | 'skipped' | 'cancelled'."""
-        import os
-        total = os.path.getsize(local)
+        src = open_source(local)
+        total = src.size
         partial = remote + PARTIAL_SUFFIX
         with self.ftp() as f:
             self.mkdirs(f, posixpath.dirname(remote))
@@ -138,8 +139,7 @@ class PS5Client:
                 offset = 0
             f.voidcmd("TYPE I")
             sent = offset
-            with open(local, "rb") as fp:
-                fp.seek(offset)
+            with src.open(offset) as fp:
                 conn = f.transfercmd(f"STOR {partial}", rest=offset or None)
                 try:
                     while True:
@@ -249,6 +249,46 @@ class PS5Client:
             return True
         except OSError:
             return False
+
+
+# ---- sources ---------------------------------------------------------------------------
+class LocalSource:
+    def __init__(self, path: str):
+        import os
+        self.path = path
+        self.size = os.path.getsize(path)
+
+    def open(self, offset: int = 0):
+        fp = open(self.path, "rb")
+        fp.seek(offset)
+        return fp
+
+
+class HttpSource:
+    """A file another agent serves (/files/<id>/<n>), read with Range requests so copies resume."""
+    def __init__(self, url: str):
+        self.url = url
+        req = urllib.request.Request(url, method="HEAD")
+        with urllib.request.urlopen(req, timeout=15) as r:    # noqa: S310
+            length = r.headers.get("Content-Length")
+        if length is None:
+            raise IOError(f"{url}: no Content-Length")
+        self.size = int(length)
+
+    def open(self, offset: int = 0):
+        headers = {"Range": f"bytes={offset}-"} if offset else {}
+        req = urllib.request.Request(self.url, headers=headers)
+        r = urllib.request.urlopen(req, timeout=60)             # noqa: S310
+        if offset and r.status != 206:
+            r.close()
+            raise IOError(f"{self.url}: the peer did not honour the Range request")
+        return r
+
+
+def open_source(spec: str):
+    if spec.startswith("http://") or spec.startswith("https://"):
+        return HttpSource(spec)
+    return LocalSource(spec)
 
 
 # ---- FTP helpers ---------------------------------------------------------------------

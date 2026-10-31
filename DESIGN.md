@@ -3,7 +3,7 @@
 Copy games from the Windows PCs that hold your backup collections to a jailbroken PS5
 (firmware 13.60) over the home network, on demand, from the couch or from a PC.
 
-Status: design for review, revision 3, 2026-10-31. Nothing built yet.
+Status: revision 3, 2026-10-31. Phases 1 and 2 are built (see README.md); Phase 3 is open.
 
 Revision 2 reflected two things learned after the first draft: the collection is mostly retro
 systems (PS1, PS2, PS3, PS4, Xbox 360, Switch, N64, Sega, …) rather than PS5 titles, and folder
@@ -258,14 +258,14 @@ avoids copying altogether; big disc images still copy.
 
 ## 9. Phased plan
 
-**Phase 1 — core loop (first usable build)**
+**Phase 1 — core loop (first usable build)** (built 2026-10-31)
 - Agent + config, manual sources, indexer with multi-file grouping, SQLite.
 - FTP worker with partial-then-rename, resume, skip-if-present; `systems.toml` with the matrix.
 - PS4 `.pkg` install via DPI v2 (v1 fallback) from the agent's Range-capable file server.
 - Storefront v1: Discover, departments, product page with 3D case and Download, Downloads queue, Settings (PS5, destinations, sources). Cover art from libretro-thumbnails with the generated-cover fallback. Two-pane manual copy under Settings → Advanced.
 - Tests: grouping rules, destination resolution, and a fake PS5 (local FTP + HTTP stub) so transfers test without the console.
 
-**Phase 2 — multi-PC and couch**
+**Phase 2 — multi-PC and couch** (built 2026-10-31; libretro `.rdb` metadata deferred to Phase 3)
 - mDNS + static peers (incl. Tailscale names), merged library, per-peer file serving, gateway streaming for remote peers.
 - TV mode tuned on the PS5 browser (controller mapping, focus, 1080p layout).
 - Metadata enrichment (libretro `.rdb`, optional ScreenScraper/IGDB), screenshots on product pages, "On your PS5" department.

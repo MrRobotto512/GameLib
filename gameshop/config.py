@@ -5,6 +5,7 @@ import json
 import os
 import socket
 import threading
+import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -33,7 +34,10 @@ class Config:
     ra_root: str = "/data/homebrew/PPSA99169"
     destinations: dict[str, str] = field(default_factory=dict)   # system id -> PS5 folder override
     sources: list[Source] = field(default_factory=list)
-    peers: list[str] = field(default_factory=list)                # host[:port] of other agents (Phase 2)
+    peers: list[str] = field(default_factory=list)                # host[:port] of other agents, LAN or Tailscale names
+    discovery: bool = True                                        # announce and find agents with mDNS
+    agent_id: str = ""                                            # stable identity so an agent never lists itself as a peer
+    payloads: list[dict] = field(default_factory=list)            # [{name, path, delay}] the payload chain, in order
     art_enabled: bool = True
     skip_existing: bool = True
     tv_mode: bool = False
@@ -68,6 +72,11 @@ class ConfigStore:
         c = Config()
         c.name = os.environ.get("COMPUTERNAME") or socket.gethostname() or "gameshop"
         return c
+
+    def ensure_identity(self) -> None:
+        if not self.config.agent_id:
+            self.config.agent_id = uuid.uuid4().hex[:12]
+            self.save()
 
     def save(self) -> None:
         with self._lock:

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .db import Database
-from .ps5 import PS5Client
+from .ps5 import PS5Client, open_source
 
 
 class TransferWorker:
@@ -90,8 +90,14 @@ class TransferWorker:
 
     # ---- routes -----------------------------------------------------------------------
     def _ftp_job(self, jid: int, job: dict[str, Any], client: PS5Client) -> None:
-        files: list[list[str]] = job["src"]            # [[local_abs, remote_rel], ...]
-        total = sum(Path(l).stat().st_size for l, _ in files if Path(l).is_file())
+        files: list[list[str]] = job["src"]            # [[local_abs_or_url, remote_rel], ...]
+        sizes = {}
+        for l, _ in files:
+            try:
+                sizes[l] = open_source(l).size
+            except OSError as e:
+                raise IOError(f"cannot read {l}: {e}")
+        total = sum(sizes.values())
         self.db.update_job(jid, total=total)
         done_before = 0
         last = [0.0]
@@ -117,12 +123,12 @@ class TransferWorker:
             if res == "cancelled":
                 self.db.update_job(jid, state="cancelled", finished=time.time(), step="Cancelled")
                 return
-            done_before += Path(local).stat().st_size
+            done_before += sizes[local]
             self.db.update_job(jid, done=done_before)
         self.db.update_job(jid, state="verifying", step="Checking sizes on the PS5")
         with client.ftp() as f:
             for local, rel in files:
-                want = Path(local).stat().st_size
+                want = sizes[local]
                 got = client.remote_size(f, posixpath.join(job["dest"], rel))
                 if got != want:
                     raise IOError(f"{rel}: PS5 has {got} bytes, expected {want}")
@@ -145,6 +151,14 @@ class TransferWorker:
 
     def _elf_job(self, jid: int, job: dict[str, Any], client: PS5Client) -> None:
         local = job["src"][0][0]
+        delay = float((job.get("opts") or {}).get("delay") or 0)
+        if delay > 0:
+            for left in range(int(delay), 0, -1):
+                if jid in self._cancel:
+                    self.db.update_job(jid, state="cancelled", finished=time.time(), step="Cancelled")
+                    return
+                self.db.update_job(jid, step=f"Waiting {left}s for the previous payload to settle")
+                time.sleep(1)
         self.db.update_job(jid, step="Sending payload", total=Path(local).stat().st_size)
         client.send_elf(local)
         self.db.update_job(jid, state="done", finished=time.time(), step="Sent to the ELF loader", done=Path(local).stat().st_size)

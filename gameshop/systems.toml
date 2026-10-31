@@ -14,6 +14,7 @@
 #             arcade | switch | generic
 #   color     brand colour for generated covers and tile tints
 #   thumbs    libretro-thumbnails repository name ("" = none)
+#   core      libretro core name RetroArch's forwarder tiles use ("" = no tiles)
 #   note      shown on the department page when route is none or dest is empty
 
 ra_default = "/data/homebrew/PPSA99169"
@@ -21,6 +22,7 @@ ra_default = "/data/homebrew/PPSA99169"
 # ---------------- Sony ----------------
 [[system]]
 id = "psx"
+core = "mednafen_psx_hw"
 name = "PlayStation"
 maker = "Sony"
 route = "ftp"
@@ -33,6 +35,7 @@ thumbs = "Sony_-_PlayStation"
 
 [[system]]
 id = "ps2"
+core = "pcsx2"
 name = "PlayStation 2"
 maker = "Sony"
 route = "ftp"
@@ -45,6 +48,7 @@ thumbs = "Sony_-_PlayStation_2"
 
 [[system]]
 id = "psp"
+core = "ppsspp"
 name = "PlayStation Portable"
 maker = "Sony"
 route = "ftp"
@@ -97,6 +101,7 @@ note = "Game images that ShadowMount+ mounts from /data/homebrew."
 # ---------------- Nintendo ----------------
 [[system]]
 id = "nes"
+core = "fceumm"
 name = "Nintendo Entertainment System"
 maker = "Nintendo"
 route = "ftp"
@@ -109,6 +114,7 @@ thumbs = "Nintendo_-_Nintendo_Entertainment_System"
 
 [[system]]
 id = "snes"
+core = "snes9x"
 name = "Super Nintendo"
 maker = "Nintendo"
 route = "ftp"
@@ -121,6 +127,7 @@ thumbs = "Nintendo_-_Super_Nintendo_Entertainment_System"
 
 [[system]]
 id = "n64"
+core = "mupen64plus_next"
 name = "Nintendo 64"
 maker = "Nintendo"
 route = "ftp"
@@ -133,6 +140,7 @@ thumbs = "Nintendo_-_Nintendo_64"
 
 [[system]]
 id = "gb"
+core = "mgba"
 name = "Game Boy"
 maker = "Nintendo"
 route = "ftp"
@@ -145,6 +153,7 @@ thumbs = "Nintendo_-_Game_Boy"
 
 [[system]]
 id = "gbc"
+core = "mgba"
 name = "Game Boy Color"
 maker = "Nintendo"
 route = "ftp"
@@ -157,6 +166,7 @@ thumbs = "Nintendo_-_Game_Boy_Color"
 
 [[system]]
 id = "gba"
+core = "mgba"
 name = "Game Boy Advance"
 maker = "Nintendo"
 route = "ftp"
@@ -169,6 +179,7 @@ thumbs = "Nintendo_-_Game_Boy_Advance"
 
 [[system]]
 id = "nds"
+core = "desmume"
 name = "Nintendo DS"
 maker = "Nintendo"
 route = "ftp"
@@ -181,6 +192,7 @@ thumbs = "Nintendo_-_Nintendo_DS"
 
 [[system]]
 id = "n3ds"
+core = "azahar"
 name = "Nintendo 3DS"
 maker = "Nintendo"
 route = "ftp"
@@ -193,6 +205,7 @@ thumbs = "Nintendo_-_Nintendo_3DS"
 
 [[system]]
 id = "gc"
+core = "dolphin"
 name = "GameCube"
 maker = "Nintendo"
 route = "ftp"
@@ -205,6 +218,7 @@ thumbs = "Nintendo_-_GameCube"
 
 [[system]]
 id = "wii"
+core = "dolphin"
 name = "Wii"
 maker = "Nintendo"
 route = "ftp"
@@ -231,6 +245,7 @@ note = "Plays in ProsperoEden (alpha, slow). Set its games folder under Settings
 # ---------------- Sega ----------------
 [[system]]
 id = "genesis"
+core = "genesis_plus_gx"
 name = "Genesis / Mega Drive"
 maker = "Sega"
 route = "ftp"
@@ -243,6 +258,7 @@ thumbs = "Sega_-_Mega_Drive_-_Genesis"
 
 [[system]]
 id = "mastersystem"
+core = "genesis_plus_gx"
 name = "Master System"
 maker = "Sega"
 route = "ftp"
@@ -255,6 +271,7 @@ thumbs = "Sega_-_Master_System_-_Mark_III"
 
 [[system]]
 id = "gamegear"
+core = "genesis_plus_gx"
 name = "Game Gear"
 maker = "Sega"
 route = "ftp"
@@ -267,6 +284,7 @@ thumbs = "Sega_-_Game_Gear"
 
 [[system]]
 id = "segacd"
+core = "genesis_plus_gx"
 name = "Sega CD"
 maker = "Sega"
 route = "ftp"
@@ -279,6 +297,7 @@ thumbs = "Sega_-_Mega-CD_-_Sega_CD"
 
 [[system]]
 id = "sega32x"
+core = "picodrive"
 name = "Sega 32X"
 maker = "Sega"
 route = "ftp"
@@ -291,6 +310,7 @@ thumbs = "Sega_-_32X"
 
 [[system]]
 id = "saturn"
+core = "mednafen_saturn"
 name = "Saturn"
 maker = "Sega"
 route = "ftp"
@@ -303,6 +323,7 @@ thumbs = "Sega_-_Saturn"
 
 [[system]]
 id = "dreamcast"
+core = "flycast"
 name = "Dreamcast"
 maker = "Sega"
 route = "ftp"
@@ -343,6 +364,7 @@ note = "Xbox 360 emulation on PS5 is a demo without a public build. Listed, down
 # ---------------- Arcade / others ----------------
 [[system]]
 id = "arcade"
+core = "fbneo"
 name = "Arcade"
 maker = "Arcade"
 route = "ftp"
@@ -355,6 +377,7 @@ thumbs = "FBNeo_-_Arcade_Games"
 
 [[system]]
 id = "neogeo"
+core = "fbneo"
 name = "Neo Geo"
 maker = "Arcade"
 route = "ftp"
@@ -367,6 +390,7 @@ thumbs = "SNK_-_Neo_Geo"
 
 [[system]]
 id = "pcengine"
+core = "mednafen_pce"
 name = "PC Engine / TurboGrafx-16"
 maker = "NEC"
 route = "ftp"
@@ -379,6 +403,7 @@ thumbs = "NEC_-_PC_Engine_-_TurboGrafx_16"
 
 [[system]]
 id = "atari2600"
+core = "stella"
 name = "Atari 2600"
 maker = "Atari"
 route = "ftp"
@@ -391,6 +416,7 @@ thumbs = "Atari_-_2600"
 
 [[system]]
 id = "atari7800"
+core = "prosystem"
 name = "Atari 7800"
 maker = "Atari"
 route = "ftp"
@@ -403,6 +429,7 @@ thumbs = "Atari_-_7800"
 
 [[system]]
 id = "atarilynx"
+core = "handy"
 name = "Atari Lynx"
 maker = "Atari"
 route = "ftp"
@@ -415,6 +442,7 @@ thumbs = "Atari_-_Lynx"
 
 [[system]]
 id = "atarijaguar"
+core = "virtualjaguar"
 name = "Atari Jaguar"
 maker = "Atari"
 route = "ftp"
@@ -427,6 +455,7 @@ thumbs = "Atari_-_Jaguar"
 
 [[system]]
 id = "c64"
+core = "vice_x64sc"
 name = "Commodore 64"
 maker = "Computers"
 route = "ftp"
@@ -439,6 +468,7 @@ thumbs = "Commodore_-_64"
 
 [[system]]
 id = "amiga"
+core = "puae"
 name = "Amiga"
 maker = "Computers"
 route = "ftp"
@@ -451,6 +481,7 @@ thumbs = "Commodore_-_Amiga"
 
 [[system]]
 id = "dos"
+core = "dosbox_pure"
 name = "MS-DOS"
 maker = "Computers"
 route = "ftp"
@@ -463,6 +494,7 @@ thumbs = "DOS"
 
 [[system]]
 id = "scummvm"
+core = "scummvm"
 name = "ScummVM"
 maker = "Computers"
 route = "ftp"

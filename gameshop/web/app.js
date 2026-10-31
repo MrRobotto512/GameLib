@@ -53,6 +53,7 @@
     var st = item.status, lab = stateLabel(st);
     return '<a class="tile" href="#/game/' + item.id + '" data-nav style="--sys:' + esc(sys.color) + '">' +
       (lab ? '<span class="state ' + esc(st.state) + '">' + lab + '</span>' : '') +
+      (item.peer ? '<span class="peer-badge" title="On another PC">' + esc(item.peer_name) + '</span>' : '') +
       '<div class="art-wrap">' + caseHTML(item) + '</div>' +
       '<div class="t-title">' + esc(item.title) + '</div>' +
       '<div class="t-sub"><span>' + esc(sys.name) + '</span>' + (item.region ? '<span>· ' + esc(item.region) + '</span>' : '') + '<span>· ' + fmtSize(item.size) + '</span></div></a>';
@@ -73,7 +74,7 @@
       var sys = sysOf(hero.system);
       var html = '<section class="hero" style="--sys:' + esc(sys.color) + '"><div class="hero-text">' +
         '<div class="eyebrow">New in ' + esc(sys.name) + '</div><h1>' + esc(hero.title) + '</h1>' +
-        '<div class="meta">' + esc(sys.name) + (hero.region ? ' · ' + esc(hero.region) : '') + ' · ' + fmtSize(hero.size) + ' · ' + esc(hero.primary) + '</div>' +
+        '<div class="meta">' + esc(sys.name) + (hero.region ? ' · ' + esc(hero.region) : '') + ' · ' + fmtSize(hero.size) + (hero.peer ? ' · on <b>' + esc(hero.peer_name) + '</b>' : '') + '</div>' +
         '<div class="desc">' + esc(sys.note || ('Ready to copy to your PS5 with one button. It lands in ' + (hero.dest || 'the folder you choose') + '.')) + '</div>' +
         '<a class="btn" href="#/game/' + hero.id + '" data-nav>⊙ &nbsp;View details</a>' +
         '<div class="hero-dots">' + d.recent.slice(0, 5).map(function (_, i) { return '<span class="' + (i === 0 ? 'on' : '') + '"></span>'; }).join('') + '</div>' +
@@ -136,15 +137,20 @@
         '<div class="meta">' + esc(sys.name) + (it.region ? ' · ' + esc(it.region) : '') + ' · ' + fmtSize(it.size) + (it.files.length > 1 ? ' · ' + it.files.length + ' files' : '') + '</div>' +
         '<div class="chips">' + chips.map(function (c) { return '<span class="pill">' + esc(c) + '</span>'; }).join('') + '</div>' +
         (it.system_note ? '<div class="note">' + esc(it.system_note) + '</div>' : '') +
-        '<dl class="facts"><dt>Files</dt><dd>' + files + '</dd><dt>On this PC</dt><dd>' + esc(it.source) + '</dd><dt>Primary file</dt><dd>' + esc(it.rel) + '</dd>' +
+        '<dl class="facts"><dt>Files</dt><dd>' + files + '</dd><dt>' + (it.peer ? 'On the PC' : 'On this PC') + '</dt><dd>' + (it.peer ? '<b>' + esc(it.peer_name) + '</b> · ' : '') + esc(it.source) + '</dd>' +
+        (it.also_on && it.also_on.length ? '<dt>Also on</dt><dd>' + esc(it.also_on.join(', ')) + '</dd>' : '') + '<dt>Primary file</dt><dd>' + esc(it.rel) + '</dd>' +
         (meta.pkg_title ? '<dt>Package title</dt><dd>' + esc(meta.pkg_title) + '</dd>' : '') + (meta.content_id ? '<dt>Content ID</dt><dd>' + esc(meta.content_id) + '</dd>' : '') +
         (meta.app_version ? '<dt>Version</dt><dd>' + esc(meta.app_version) + '</dd>' : '') +
         '<dt>Goes to</dt><dd>' + (it.route === 'dpi' ? 'Installed by the PS5 (Direct Package Installer)' : it.route === 'elf' ? 'ELF loader, port 9021' : esc(it.dest || 'no folder set')) + '</dd></dl>' +
-        '<p style="margin-top:22px"><button class="btn small" id="flip" data-nav>Flip the case</button></p></div>' +
+        '<p style="margin-top:22px"><button class="btn small" id="flip" data-nav>Flip the case</button> ' +
+        (it.tile_possible ? '<button class="btn small" id="tile" data-nav title="Make a home-screen tile in RetroArch (needs its WebUI running)">Add to PS5 home screen</button>' : '') + '</p>' +
+        (it.art ? '<div class="shots" id="shots"><img src="/art/' + it.id + '?kind=snap" alt="" onerror="this.remove()"><img src="/art/' + it.id + '?kind=title" alt="" onerror="this.remove()"></div>' : '') + '</div>' +
         '<div class="card get" id="get"></div></div>';
       view.innerHTML = html;
       $('#stage .case').style.setProperty('--scale', isCart(it.case) ? '2.2' : '2.3');
       $('#flip').addEventListener('click', function () { var c = $('#stage .case'); c.classList.remove('spin'); c.classList.toggle('flip'); });
+      var tileBtn = $('#tile');
+      if (tileBtn) tileBtn.addEventListener('click', function () { tileBtn.disabled = true; api('/api/items/' + it.id + '/tile', { method: 'POST' }).then(function () { toast('Tile created. It appears on the home screen once RetroArch closes.', 5000); }).catch(function (e) { toast(e.message, 6000); }).then(function () { tileBtn.disabled = false; }); });
       renderGet(it, st);
       watchItem(it.id);
     });
@@ -259,14 +265,31 @@
       '<label><input type="checkbox" id="art" ' + (cfg.art_enabled ? 'checked' : '') + ' style="width:auto"> Fetch cover art from libretro-thumbnails (this PC needs internet)</label>' +
       '<p><button class="btn" id="opts-save" data-nav>Save options</button></p></div>' +
       '<div class="card form"><h2 style="margin-top:0">Sources <span class="count">folders on this PC</span></h2>' +
-      (cfg.sources.length ? cfg.sources.map(function (s) { return '<div class="row"><div class="grow"><div class="title">' + esc(s.path) + '</div><div class="sub">' + esc(sysOf(s.system).name || s.system) + '</div></div><button class="btn small danger" data-rm="' + esc(s.path) + '" data-nav>Remove</button></div>'; }).join('') : '<p class="muted">No folders yet.</p>') +
+      (cfg.sources.length ? cfg.sources.map(function (s) { return '<div class="row"><div class="grow"><div class="title">' + esc(s.path) + '</div><div class="sub">' + esc(sysOf(s.system).name || s.system) + '</div></div><button class="btn small" data-smb="' + esc(s.path) + '" data-nav title="Play this folder in place from RetroArch over SMB">Share</button><button class="btn small danger" data-rm="' + esc(s.path) + '" data-nav>Remove</button></div>'; }).join('') : '<p class="muted">No folders yet.</p>') +
       '<label>Add a folder</label><div class="inline"><input id="src-path" placeholder="D:\\Games\\PS1"><button class="btn small" id="src-browse" data-nav>Browse…</button></div>' +
-      '<label>Which console is in it?</label><select id="src-sys"><option value="mixed">Mixed (guess by file type, unambiguous only)</option>' + state.app.systems.map(function (s) { return '<option value="' + s.id + '">' + esc(s.name) + '</option>'; }).join('') + '</select>' +
+      '<label>Which console is in it?</label><select id="src-sys"><option value="mixed">Mixed (guess by file type, unambiguous only)</option>' + state.app.systems.filter(function (s) { return s.route !== 'elf'; }).map(function (s) { return '<option value="' + s.id + '">' + esc(s.name) + '</option>'; }).join('') + '</select>' +
       '<p><button class="btn gold" id="src-add" data-nav>Add source</button> <button class="btn" id="rescan" data-nav>Rescan all</button></p></div></div>';
     html += '<div class="card" style="margin-top:20px"><h2 style="margin-top:0">Destinations <span class="count">where each console\'s games go on the PS5</span></h2><p class="muted">Blank uses the default. {ra} is the RetroArch folder above.</p><table class="dest-table">' +
       state.app.systems.filter(function (s) { return s.route === 'ftp'; }).map(function (s) {
         return '<tr><td style="width:220px"><b>' + esc(s.name) + '</b><div class="dim" style="font-size:12px">' + esc(s.default_dest || 'no default — enter one') + '</div></td><td><input data-dest="' + s.id + '" value="' + esc(cfg.destinations[s.id] || '') + '" placeholder="' + esc(s.default_dest || '/data/...') + '"></td></tr>';
       }).join('') + '</table><p><button class="btn" id="dest-save" data-nav>Save destinations</button></p></div>';
+    // peers
+    var peers = state.app.peers || [];
+    html += '<div class="grid-2" style="margin-top:20px"><div class="card form"><h2 style="margin-top:0">Other PCs <span class="count">peers</span></h2>' +
+      '<p class="muted">Agents on the network are found by themselves. Add one by name or address for another LAN or Tailscale (<code>basement-pc</code>, <code>100.101.102.103:8750</code>). Their games appear in the store and copy to the PS5 through this PC.</p>' +
+      (peers.length ? peers.map(function (p) { return '<div class="row"><span class="dot ' + (p.online ? 'on' : '') + '" style="background:' + (p.online ? 'var(--green)' : 'var(--red)') + '"></span><div class="grow"><div class="title">' + esc(p.name) + ' <span class="dim">' + esc(p.url) + '</span></div><div class="sub">' + (p.online ? p.count + ' games' : 'offline' + (p.error ? ' · ' + esc(p.error) : '')) + ' · ' + esc(p.source) + '</div></div>' + (p.source === 'static' ? '<button class="btn small danger" data-rmpeer="' + esc(p.key) + '" data-nav>Remove</button>' : '') + '</div>'; }).join('') : '<p class="muted">No other PCs seen yet.</p>') +
+      '<label>Add a PC</label><div class="inline"><input id="peer-add" placeholder="hostname, Tailscale name or ip[:port]"><button class="btn small" id="peer-add-btn" data-nav>Add</button><button class="btn small" id="peer-refresh" data-nav>Refresh</button></div>' +
+      '<label><input type="checkbox" id="discovery" ' + (cfg.discovery ? 'checked' : '') + ' style="width:auto"> Announce this PC and find others on the LAN (mDNS)</label>' +
+      '<p class="dim" style="font-size:12px">This PC: ' + esc(cfg.name) + ' · ' + esc(state.app.lan_ip) + ':' + cfg.port + ' · id ' + esc(cfg.agent_id) + '</p></div>';
+    // payloads
+    var pl = cfg.payloads || [];
+    html += '<div class="card form"><h2 style="margin-top:0">Payloads <span class="count">after every reboot</span></h2>' +
+      '<p class="muted">The chain is sent in order to the ELF loader (9021), waiting the given seconds before each one. Usual order: kstuff, ShadowMount+, etaHEN.</p>' +
+      (pl.length ? pl.map(function (x, i) { return '<div class="row"><div class="grow"><div class="title">' + (i + 1) + '. ' + esc(x.name || x.path.split(/[\\/]/).pop()) + '</div><div class="sub">' + esc(x.path) + (i ? ' · wait ' + (x.delay || 0) + 's' : '') + '</div></div>' +
+        '<button class="btn small" data-plup="' + i + '" data-nav>↑</button><button class="btn small" data-plsend="' + i + '" data-nav>Send</button><button class="btn small danger" data-plrm="' + i + '" data-nav>Remove</button></div>'; }).join('') : '<p class="muted">No payloads yet.</p>') +
+      '<label>Add a payload</label><div class="inline"><input id="pl-path" placeholder="C:\\payloads\\kstuff.elf"><button class="btn small" id="pl-browse" data-nav>Browse…</button></div>' +
+      '<div class="inline" style="margin-top:8px"><input id="pl-name" placeholder="Name (optional)"><input id="pl-delay" type="number" min="0" value="8" style="width:110px" title="seconds to wait before this one"><span class="dim">s wait</span><button class="btn small" id="pl-add" data-nav>Add</button></div>' +
+      '<p><button class="btn gold" id="pl-chain" data-nav' + (pl.length ? '' : ' disabled') + '>⚡ Load the chain</button></p></div></div>';
     html += '<div class="card" style="margin-top:20px"><h2 style="margin-top:0">Advanced: copy anything</h2><p class="muted">Pick files or a folder on this PC (left), a folder on the PS5 (right), then Copy.</p>' +
       '<div class="two-pane"><div class="pane" id="lp"><div class="path"></div><ul></ul></div><div class="pane" id="rp"><div class="path"></div><ul></ul></div></div>' +
       '<p class="toolbar"><button class="btn gold" id="copy-manual" data-nav>Copy selected → PS5 folder</button><span class="muted" id="sel-info"></span><span style="flex:1"></span>' +
@@ -280,7 +303,22 @@
     $('#src-add').addEventListener('click', function () { api('/api/sources', { method: 'POST', body: { path: $('#src-path').value.trim(), system: $('#src-sys').value } }).then(function () { toast('Added. Scanning…'); return loadState(); }).then(render).catch(function (e) { toast(e.message); }); });
     $('#rescan').addEventListener('click', function () { api('/api/rescan', { method: 'POST' }).then(function () { toast('Rescanning'); }); });
     $$('[data-rm]').forEach(function (b) { b.addEventListener('click', function () { api('/api/sources?path=' + encodeURIComponent(b.dataset.rm), { method: 'DELETE' }).then(loadState).then(render); }); });
-    $('#src-browse').addEventListener('click', function () { pickLocalFolder(function (p) { $('#src-path').value = p; }); });
+    $('#src-browse').addEventListener('click', function () { pickLocal(function (p) { $('#src-path').value = p; }, false); });
+    $$('[data-smb]').forEach(function (b) { b.addEventListener('click', function () { api('/api/smb/info?path=' + encodeURIComponent(b.dataset.smb)).then(showSmb).catch(function (e) { toast(e.message); }); }); });
+    // peers
+    function savePeers(list) { return api('/api/config', { method: 'PUT', body: { peers: list } }).then(function () { return loadState(); }).then(render); }
+    $('#peer-add-btn').addEventListener('click', function () { var v = $('#peer-add').value.trim(); if (!v) return; savePeers((cfg.peers || []).concat([v])); });
+    $('#peer-refresh').addEventListener('click', function () { api('/api/peers/refresh', { method: 'POST' }).then(function () { toast('Asking the other PCs…'); setTimeout(function () { loadState().then(render); }, 2500); }); });
+    $('#discovery').addEventListener('change', function () { api('/api/config', { method: 'PUT', body: { discovery: this.checked } }).then(function () { toast('Saved. Restart Game Shop to apply.'); }); });
+    $$('[data-rmpeer]').forEach(function (b) { b.addEventListener('click', function () { var key = b.dataset.rmpeer; savePeers((cfg.peers || []).filter(function (x) { var hp = x.replace(/^https?:\/\//, '').replace(/\/$/, ''); return hp !== key && hp + ':8750' !== key && hp.split(':')[0] !== key.split(':')[0]; })); }); });
+    // payloads
+    function savePl(list) { return api('/api/config', { method: 'PUT', body: { payloads: list } }).then(function () { return loadState(); }).then(render); }
+    $('#pl-browse').addEventListener('click', function () { pickLocal(function (p) { $('#pl-path').value = p; }, true); });
+    $('#pl-add').addEventListener('click', function () { var path = $('#pl-path').value.trim(); if (!path) return; savePl(pl.concat([{ name: $('#pl-name').value.trim(), path: path, delay: parseInt($('#pl-delay').value, 10) || 0 }])); });
+    $$('[data-plrm]').forEach(function (b) { b.addEventListener('click', function () { var i = +b.dataset.plrm; savePl(pl.filter(function (_, j) { return j !== i; })); }); });
+    $$('[data-plup]').forEach(function (b) { b.addEventListener('click', function () { var i = +b.dataset.plup; if (!i) return; var l = pl.slice(); var t = l[i - 1]; l[i - 1] = l[i]; l[i] = t; savePl(l); }); });
+    $$('[data-plsend]').forEach(function (b) { b.addEventListener('click', function () { var x = pl[+b.dataset.plsend]; api('/api/ps5/payload', { method: 'POST', body: { path: x.path, name: x.name } }).then(function () { toast('Sending ' + (x.name || x.path)); refreshJobs(); }).catch(function (e) { toast(e.message); }); }); });
+    $('#pl-chain').addEventListener('click', function () { api('/api/ps5/chain', { method: 'POST', body: {} }).then(function (jobs) { toast('Chain queued: ' + jobs.length + ' payloads. Watch Downloads.'); refreshJobs(); }).catch(function (e) { toast(e.message); }); });
     $('#elf-send').addEventListener('click', function () { api('/api/ps5/payload', { method: 'POST', body: { path: $('#elf-path').value.trim() } }).then(function () { toast('Payload queued'); }).catch(function (e) { toast(e.message); }); });
 
     // two-pane
@@ -306,22 +344,37 @@
     $('#copy-manual').addEventListener('click', function () { var paths = Object.keys(sel); if (!paths.length) return toast('Select something on the left first'); api('/api/jobs/manual', { method: 'POST', body: { paths: paths, dest: rpath.v } }).then(function () { toast('Copying to ' + rpath.v); sel = {}; $$('li.sel', lp).forEach(function (l) { l.classList.remove('sel'); }); refreshJobs(); }).catch(function (e) { toast(e.message); }); });
   };
 
-  function pickLocalFolder(done) {
+  function pickLocal(done, wantFile) {
     var m = $('#modal'); m.hidden = false;
-    m.innerHTML = '<div class="box"><h2 style="margin-top:0">Choose a folder</h2><div class="pane" id="pick"><div class="path"></div><ul></ul></div><p class="toolbar"><button class="btn gold" id="pick-ok" data-nav>Use this folder</button><button class="btn" id="pick-cancel" data-nav>Cancel</button></p></div>';
+    m.innerHTML = '<div class="box"><h2 style="margin-top:0">' + (wantFile ? 'Choose a file' : 'Choose a folder') + '</h2><div class="pane" id="pick"><div class="path"></div><ul></ul></div><p class="toolbar">' + (wantFile ? '' : '<button class="btn gold" id="pick-ok" data-nav>Use this folder</button>') + '<button class="btn" id="pick-cancel" data-nav>Cancel</button></p></div>';
     var cur = { v: '' };
     function load(path) {
       api('/api/local/ls?path=' + encodeURIComponent(path || '')).then(function (d) {
         cur.v = d.path; $('#pick .path').textContent = d.path || 'This PC';
         var items = d.parent !== undefined ? ['<li data-dir="' + esc(d.parent) + '" data-nav tabindex="0">‹ ..</li>'] : [];
-        d.entries.filter(function (e) { return e.is_dir; }).forEach(function (e) { items.push('<li data-dir="' + esc(e.path) + '" data-nav tabindex="0">📁 ' + esc(e.name) + '</li>'); });
+        d.entries.forEach(function (e) {
+          if (e.is_dir) items.push('<li data-dir="' + esc(e.path) + '" data-nav tabindex="0">📁 ' + esc(e.name) + '</li>');
+          else if (wantFile) items.push('<li data-file="' + esc(e.path) + '" data-nav tabindex="0">📄 ' + esc(e.name) + '<span class="sz">' + fmtSize(e.size) + '</span></li>');
+        });
         $('#pick ul').innerHTML = items.join('');
-        $$('#pick li').forEach(function (li) { li.addEventListener('click', function () { load(li.dataset.dir); }); li.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') load(li.dataset.dir); }); });
+        $$('#pick li').forEach(function (li) {
+          function go() { if (li.dataset.file) { m.hidden = true; done(li.dataset.file); } else load(li.dataset.dir); }
+          li.addEventListener('click', go); li.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') go(); });
+        });
       });
     }
     load('');
-    $('#pick-ok').addEventListener('click', function () { m.hidden = true; if (cur.v) done(cur.v); });
+    var ok = $('#pick-ok'); if (ok) ok.addEventListener('click', function () { m.hidden = true; if (cur.v) done(cur.v); });
     $('#pick-cancel').addEventListener('click', function () { m.hidden = true; });
+  }
+  function showSmb(info) {
+    var m = $('#modal'); m.hidden = false;
+    m.innerHTML = '<div class="box"><h2 style="margin-top:0">Play in place over SMB</h2><p class="muted">RetroArch on the PS5 can browse one shared folder. Share this one read-only, then point RetroArch at it (its WebUI → SMB). Small ROMs play straight from this PC; big disc images are better copied.</p>' +
+      '<label class="dim">1. Run once in an administrator PowerShell</label><pre class="code">' + esc(info.command) + '</pre>' +
+      '<label class="dim">2. In RetroArch\'s WebUI → SMB</label><dl class="facts"><dt>Server</dt><dd>' + esc(info.server) + '</dd><dt>Share</dt><dd>' + esc(info.share) + '</dd><dt>User</dt><dd>(guest, leave empty)</dd><dt>Workgroup</dt><dd>' + esc(info.workgroup) + '</dd></dl>' +
+      '<p class="dim" style="font-size:13px">' + esc(info.note) + '</p><p class="dim" style="font-size:12px">To stop sharing: <code>' + esc(info.remove) + '</code></p>' +
+      '<p class="toolbar"><button class="btn" id="smb-close" data-nav>Close</button></p></div>';
+    $('#smb-close').addEventListener('click', function () { m.hidden = true; });
   }
 
   // ---------- router ----------
@@ -364,8 +417,15 @@
 
   // ---------- TV mode: spatial navigation ----------
   function focusables() { return $$('[data-nav], a.tile, button, input, select, li[tabindex]').filter(function (el) { if (el.disabled || el.offsetParent === null) return false; var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }); }
-  function focusFirst() { var els = focusables().filter(function (e) { return e.closest('#view'); }); if (els.length) setFocus(els[0]); }
-  function setFocus(el) { $$('.focused').forEach(function (e) { e.classList.remove('focused'); }); el.classList.add('focused'); el.focus({ preventScroll: true }); el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); }
+  var focusMemory = {};
+  function focusFirst() {
+    var remembered = focusMemory[location.hash];
+    if (remembered) { var el = document.querySelector('[href="' + remembered + '"]'); if (el) { setFocus(el); return; } }
+    var els = focusables().filter(function (e) { return e.closest('#view'); });
+    var pref = els.filter(function (e) { return e.classList.contains('tile') || e.classList.contains('dept-card') || e.id === 'dl'; });
+    if (pref.length) setFocus(pref[0]); else if (els.length) setFocus(els[0]);
+  }
+  function setFocus(el) { $$('.focused').forEach(function (e) { e.classList.remove('focused'); }); el.classList.add('focused'); el.focus({ preventScroll: true }); el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); if (el.getAttribute('href')) focusMemory[location.hash] = el.getAttribute('href'); }
   function move(dir) {
     var cur = document.activeElement && document.activeElement.closest('[data-nav], li[tabindex]') ? document.activeElement : $('.focused');
     var els = focusables();

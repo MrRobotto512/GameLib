@@ -4,9 +4,12 @@ A storefront for your own game backups that delivers to a jailbroken PS5 (firmwa
 home network. Consoles are departments, every game is a product with a 3D case, and **Download**
 copies it to the folder its PS5 emulator reads. See [DESIGN.md](DESIGN.md) for the whole picture.
 
-Phase 1 (this build): one PC, manual folder → console mapping, FTP copies into RetroArch and other
-emulator folders, PS4 package installs through etaHEN's Direct Package Installer, cover art from
-libretro-thumbnails, a Downloads queue, a two-pane manual copy, and a TV mode for the PS5 browser.
+Built so far (Phases 1 and 2): manual folder → console mapping, FTP copies into RetroArch and other
+emulator folders, PS4 package installs through etaHEN's Direct Package Installer, cover art,
+screenshots and title screens from libretro-thumbnails, a Downloads queue, a two-pane manual copy,
+a TV mode for the PS5 browser, **several PCs as one store** (found by mDNS or added by name, with
+this PC as the gateway that streams their games to the PS5), a **payload chain** sender, RetroArch
+**home-screen tiles**, and an SMB "play in place" helper.
 
 ## Run it
 
@@ -46,6 +49,12 @@ powershell -ExecutionPolicy Bypass -File tools\firewall.ps1
    have no default and need a folder.
 4. Open a console, open a game, press **Download**. **Downloads** shows the queue; the product page
    shows "On your PS5" once the file is there with the right size.
+5. **Other PCs**: run Game Shop on each PC that holds backups. On the same LAN they find each other;
+   for another LAN or Tailscale, add the PC by name under **Settings → Other PCs**. Their games show
+   in the store with a badge, and a Download streams the file through this PC to the PS5, so the
+   PS5 only ever talks to this one.
+6. **Payloads**: add kstuff, ShadowMount+ and etaHEN in order under **Settings → Payloads** with a
+   wait between them; **Load the chain** sends them after a reboot.
 
 ## What goes where
 
@@ -67,6 +76,7 @@ The table lives in `gameshop/systems.toml`; add a row when a new emulator appear
 ```
 
 Tests run against a fake PS5 (an FTP server and a DPI stub on localhost), so no console is needed.
+Two agents are started in `tests/test_peers.py` to cover the merged library and the gateway.
 `gameshop/` is the agent (FastAPI + SQLite + a transfer thread); `gameshop/web/` is the storefront,
 plain HTML/CSS/JS so the PS5's WebKit can run it. `references/` holds read-only clones of the
 projects this builds on (etaHEN, ps5upload, PS5_RetroArch, ProsperoStore, ps5-payload-dev).
