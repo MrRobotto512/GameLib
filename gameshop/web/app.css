@@ -126,6 +126,7 @@ h2 .count { color: var(--dim); font-size: 14px; font-weight: 600; }
 .case.mini-dvd { --w: 135px; --h: 190px; --d: 14px; --shell: #5c3fa6; }
 .case.umd { --w: 100px; --h: 170px; --d: 12px; --shell: #9aa0ad; }
 .case.switch { --w: 105px; --h: 170px; --d: 10px; --shell: #e60012; }
+.case.switch .front img { object-fit: contain; object-position: center 28%; background: #141414; }
 .case.generic { --w: 135px; --h: 190px; --d: 12px; --shell: #555a6a; }
 /* cartridges: one slab, no spine text, label window */
 .case.cart { --d: 16px; filter: drop-shadow(0 18px 18px rgba(0,0,0,.55)); }

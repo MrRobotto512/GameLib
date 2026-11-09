@@ -9,11 +9,12 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .art import candidates
 from .db import Database
 from .rdb import load_games
+from .switchdb import NotReady
 from .systems import SystemsTable
 
 RDB_URL = "https://raw.githubusercontent.com/libretro/libretro-database/master/rdb/{name}.rdb"
@@ -41,6 +42,8 @@ class MetadataStore:
         self._index: dict[str, dict[str, dict[str, Any]]] = {}       # system id -> norm name -> record
         self._failed: dict[str, float] = {}
         self._lock = threading.Lock()
+        # item -> facts | None; may raise switchdb.NotReady. Tried before the rdb lookup.
+        self.providers: list[Callable[[dict[str, Any]], dict[str, Any] | None]] = []
         self.db.execute("CREATE TABLE IF NOT EXISTS metadata (item_id TEXT PRIMARY KEY, status TEXT, data TEXT, checked REAL)")
 
     # ---- per item --------------------------------------------------------------
@@ -54,12 +57,22 @@ class MetadataStore:
                 return None
         if not fetch or not self.enabled():
             return None
-        index = self._system_index(item["system"])
-        if index is None:
-            return None
-        rec = self._match(index, item)
-        if rec:
-            facts = self._facts(rec)
+        facts = None
+        for provider in self.providers:
+            try:
+                facts = provider(item)
+            except NotReady:
+                return None                          # try again later, record nothing
+            if facts:
+                break
+        if not facts:
+            index = self._system_index(item["system"])
+            if index is None:
+                return None
+            rec = self._match(index, item)
+            if rec:
+                facts = self._facts(rec)
+        if facts:
             self.db.execute("INSERT OR REPLACE INTO metadata(item_id,status,data,checked) VALUES(?,?,?,?)",
                             (item["id"], "ok", json.dumps(facts), time.time()))
             return facts

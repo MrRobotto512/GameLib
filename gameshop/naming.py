@@ -63,6 +63,10 @@ def parse_name(stem: str) -> ParsedName:
             continue
         tags.append(raw)
     title = base.strip().rstrip("-–_ ").strip()
+    vm = re.search(r"\s+(v\d+(?:\.\d+)+)$", title, re.I)
+    if vm:
+        tags.insert(0, vm.group(1))
+        title = title[: vm.start()].strip()
     if not title:
         title = stem
     # "Title, The" / "Title, The - Subtitle" -> "The Title - Subtitle"

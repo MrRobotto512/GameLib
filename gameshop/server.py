@@ -26,6 +26,7 @@ from .config import ConfigStore, Source
 from .db import Database
 from .indexer import Indexer, scan_all
 from .metadata import MetadataStore
+from .switchdb import SwitchTitleDB
 from .paths import resource_dir
 from .peers import PeerDirectory
 from .ps5 import PS5Client, Health, RA_PORT, scan_subnet
@@ -50,6 +51,11 @@ class Agent:
         self.indexer = Indexer(self.systems)
         self.art = ArtCache(self.db, self.systems, self.data_dir / "art", enabled=lambda: self.store.config.art_enabled)
         self.metadata = MetadataStore(self.db, self.systems, self.data_dir / "rdb", enabled=lambda: self.store.config.art_enabled)
+        self.switchdb = SwitchTitleDB(self.data_dir / "titledb", enabled=lambda: self.store.config.art_enabled,
+                                      on_ready=self._switch_ready)
+        self.art.providers.append(lambda it, kind: self.switchdb.art_url(it, kind) if it["system"] == "switch" else None)
+        self.metadata.providers.append(lambda it: self.switchdb.facts(it) if it["system"] == "switch" else None)
+        self._forget_misses("switch")                 # misses recorded before this provider existed
         self.worker = TransferWorker(self.db, lambda: self.client(), self.file_url,
                                      skip_existing=lambda: self.store.config.skip_existing, after_ftp=self._after_ftp)
         self.peers = PeerDirectory(self.config.agent_id, self.config.name, lambda: self.config.port,
@@ -93,6 +99,19 @@ class Agent:
         return s.resolve_dest(self.config.ra_root, self.config.destinations) if s else ""
 
     # ---- library: local + peers ----------------------------------------------------
+    def _forget_misses(self, system_id: str) -> None:
+        ids = [r["id"] for r in self.db.items(system=system_id)]
+        for i in ids:
+            self.db.execute("DELETE FROM art WHERE status='missing' AND (item_id=? OR item_id LIKE ?)", (i, i + ":%"))
+            self.db.execute("DELETE FROM metadata WHERE status='missing' AND item_id=?", (i,))
+
+    def _switch_ready(self) -> None:
+        """The title database finished downloading: fetch art and facts for the Switch items now."""
+        self._forget_misses("switch")
+        items = self.db.items(system="switch")
+        self.art.prefetch(items)
+        self.metadata.prefetch(items)
+
     def rescan(self) -> dict[str, int]:
         with self._scan_lock:
             self.scanning = True
@@ -433,7 +452,10 @@ def create_app(agent: Agent | None = None) -> FastAPI:
         p = agent.art.get(it, kind=kind if kind in ArtCache.KINDS else "box")
         if not p:
             raise HTTPException(404)
-        return FileResponse(p, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
+        with open(p, "rb") as f:
+            magic = f.read(3)
+        media = "image/jpeg" if magic[:2] == b"\xff\xd8" else "image/webp" if magic[:3] == b"RIF" else "image/png"
+        return FileResponse(p, media_type=media, headers={"Cache-Control": "public, max-age=86400"})
 
     # ---- jobs ------------------------------------------------------------------------
     @app.get("/api/jobs")

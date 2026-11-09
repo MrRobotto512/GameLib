@@ -161,6 +161,12 @@ class Indexer:
             kind = "image"
         if parsed.disc:
             meta["disc"] = parsed.disc
+        if system.id == "switch":
+            from .switchdb import classify, parse_title_id
+            tid = parse_title_id(parsed.stem)
+            if tid:
+                content, base = classify(tid)
+                meta.update(title_id=tid, base_id=base, content=content)
         file_rows = [[f.relative_to(root).as_posix(), _size(f)] for f in files]
         return {
             "id": item_id(str(root), rel),

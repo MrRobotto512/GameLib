@@ -12,10 +12,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from .db import Database
 from .naming import libretro_thumb_name
+from .switchdb import NotReady
 from .systems import SystemsTable
 
 BASE = "https://raw.githubusercontent.com/libretro-thumbnails/{repo}/master/{kind}/{name}.png"
@@ -61,6 +62,8 @@ class ArtCache:
         self.enabled = enabled
         self._inflight: set[str] = set()
         self._lock = threading.Lock()
+        # (item, kind) -> image URL | None; may raise switchdb.NotReady. Tried before libretro.
+        self.providers: list[Callable[[dict[str, Any], str], str | None]] = []
 
     KINDS = {"box": "Named_Boxarts", "snap": "Named_Snaps", "title": "Named_Titles"}
 
@@ -83,7 +86,7 @@ class ArtCache:
     def fetch(self, item: dict[str, Any], kind: str = "box") -> Path | None:
         key = item["id"] if kind == "box" else f"{item['id']}:{kind}"
         system = self.systems.get(item["system"])
-        if not system or not system.thumbs or kind not in self.KINDS:
+        if not system or kind not in self.KINDS or (not system.thumbs and not self.providers):
             self.db.set_art(key, "missing")
             return None
         with self._lock:
@@ -91,6 +94,21 @@ class ArtCache:
                 return None
             self._inflight.add(key)
         try:
+            for provider in self.providers:
+                try:
+                    url = provider(item, kind)
+                except NotReady:
+                    return None                      # try again later, record nothing
+                if url:
+                    data = _get(url, timeout=20)
+                    if data:
+                        p = self.path_for(item["id"], kind)
+                        p.write_bytes(data)
+                        self.db.set_art(key, "ok", str(p))
+                        return p
+            if not system.thumbs:
+                self.db.set_art(key, "missing")
+                return None
             for name in candidates(item):
                 url = BASE.format(repo=system.thumbs, kind=self.KINDS[kind],
                                   name=urllib.parse.quote(libretro_thumb_name(name)))

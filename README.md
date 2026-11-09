@@ -7,7 +7,7 @@ copies it to the folder its PS5 emulator reads. See [DESIGN.md](DESIGN.md) for t
 Built so far (Phases 1 to 3): manual folder → console mapping, FTP copies into RetroArch and other
 emulator folders, PS4 package installs through etaHEN's Direct Package Installer, cover art,
 screenshots and title screens from libretro-thumbnails, game facts (year, developer, publisher,
-genre, players) from libretro-database, a Downloads queue, a two-pane manual copy, a TV mode for
+genre, players) from libretro-database, Switch art and facts from titledb by title ID, a Downloads queue, a two-pane manual copy, a TV mode for
 the PS5 browser, **several PCs as one store** (found by mDNS or added by name, with this PC as the
 gateway that streams their games to the PS5), a **payload chain** sender, RetroArch **home-screen
 tiles**, an SMB "play in place" helper, a **tray app**, a one-file **GameShop.exe** and autostart.

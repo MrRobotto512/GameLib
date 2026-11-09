@@ -145,8 +145,11 @@ Discover ─ hero (featured / recently added / "continue downloading") + shelves
   cartridges, Genesis clamshell, GameCube mini case, Dreamcast jewel case, Xbox 360 green case,
   generic case otherwise. Templates are SVG/CSS, themed per region (NTSC / PAL / JP).
 - **Cover art** comes from **libretro-thumbnails** (GitHub, per-system repositories with
-  `Named_Boxarts/`, `Named_Snaps/`, `Named_Titles/`, matched by No‑Intro / Redump names) and,
-  optionally, ScreenScraper or IGDB with your own API key. Matching is name-based with a
+  `Named_Boxarts/`, `Named_Snaps/`, `Named_Titles/`, matched by No‑Intro / Redump names). **Switch**
+  has no libretro set, so its icons, banners, screenshots and facts come from the community
+  **titledb** (blawar/titledb, one 90 MB JSON compacted and cached by the PC), matched by the
+  16-digit title ID in the dump's name; update (`…800`) and DLC IDs map back to the base game, and
+  dumps without an ID match by name. ScreenScraper or IGDB with your own API key remain optional. Matching is name-based with a
   normaliser (strip region tags, "The", punctuation) and a manual "pick art" override. Art is
   fetched by the **PC**, cached as WebP, served to the PS5 locally.
 - **Fallback** when no art is found: a generated cover with the title in large type over a

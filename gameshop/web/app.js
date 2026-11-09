@@ -129,7 +129,7 @@
       var st = it.status || { state: 'ready' };
       var files = it.files.map(function (f) { return '<div>' + esc(f[0].split('/').pop()) + ' <span class="dim">' + fmtSize(f[1]) + '</span></div>'; }).join('');
       var meta = it.meta || {}, facts = it.facts || {};
-      var chips = [sys.name, it.region, facts.genre, facts.players ? facts.players + (facts.players === 1 ? ' player' : ' players') : '', facts.rating, (meta.ext || '').toUpperCase(), meta.category, meta.title_id, meta.disc ? 'Disc ' + meta.disc : ''].concat(it.tags || []).filter(Boolean);
+      var chips = [sys.name, it.region, facts.part, facts.genre, facts.players ? facts.players + (facts.players === 1 ? ' player' : ' players') : '', facts.rating, (meta.ext || '').toUpperCase(), meta.category, meta.title_id, meta.disc ? 'Disc ' + meta.disc : ''].concat((it.tags || []).filter(function (t) { return t !== meta.title_id; })).filter(Boolean);
       var html = '<a class="muted" href="#/dept/' + it.system + '" data-nav>‹ ' + esc(sys.name) + '</a>' +
         '<div class="product" style="--sys:' + esc(sys.color) + '">' +
         '<div class="art-stage" id="stage">' + caseHTML(it, { spin: !state.tv }) + '</div>' +
@@ -138,7 +138,7 @@
         (facts.description ? '<p class="desc">' + esc(facts.description) + '</p>' : '') +
         '<div class="chips">' + chips.map(function (c) { return '<span class="pill">' + esc(c) + '</span>'; }).join('') + '</div>' +
         (it.system_note ? '<div class="note">' + esc(it.system_note) + '</div>' : '') +
-        '<dl class="facts">' + (facts.year ? '<dt>Released</dt><dd>' + esc(facts.year) + (facts.month ? '-' + ('0' + facts.month).slice(-2) : '') + '</dd>' : '') + (facts.developer ? '<dt>Developer</dt><dd>' + esc(facts.developer) + '</dd>' : '') + (facts.publisher ? '<dt>Publisher</dt><dd>' + esc(facts.publisher) + '</dd>' : '') + (facts.franchise ? '<dt>Series</dt><dd>' + esc(facts.franchise) + '</dd>' : '') + (facts.serial ? '<dt>Serial</dt><dd>' + esc(facts.serial) + '</dd>' : '') +
+        '<dl class="facts">' + (facts.year ? '<dt>Released</dt><dd>' + esc(facts.year) + (facts.month ? '-' + ('0' + facts.month).slice(-2) : '') + '</dd>' : '') + (facts.developer ? '<dt>Developer</dt><dd>' + esc(facts.developer) + '</dd>' : '') + (facts.publisher ? '<dt>Publisher</dt><dd>' + esc(facts.publisher) + '</dd>' : '') + (facts.franchise ? '<dt>Series</dt><dd>' + esc(facts.franchise) + '</dd>' : '') + (facts.part && facts.game ? '<dt>Game</dt><dd>' + esc(facts.game) + '</dd>' : '') + (facts.serial ? '<dt>Serial</dt><dd>' + esc(facts.serial) + '</dd>' : '') +
         '<dt>Files</dt><dd>' + files + '</dd><dt>' + (it.peer ? 'On the PC' : 'On this PC') + '</dt><dd>' + (it.peer ? '<b>' + esc(it.peer_name) + '</b> · ' : '') + esc(it.source) + '</dd>' +
         (it.also_on && it.also_on.length ? '<dt>Also on</dt><dd>' + esc(it.also_on.join(', ')) + '</dd>' : '') + '<dt>Primary file</dt><dd>' + esc(it.rel) + '</dd>' +
         (meta.pkg_title ? '<dt>Package title</dt><dd>' + esc(meta.pkg_title) + '</dd>' : '') + (meta.content_id ? '<dt>Content ID</dt><dd>' + esc(meta.content_id) + '</dd>' : '') +
