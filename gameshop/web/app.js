@@ -23,7 +23,7 @@
   }
   var toastTimer;
   function toast(msg, ms) { var t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, ms || 3200); }
-  function sysOf(id) { return state.systems[id] || { id: id, name: id, case: 'generic', color: '#888', route: 'none' }; }
+  function sysOf(id) { return state.systems[id] || { id: id, name: id === 'payload' ? 'Payload' : id, case: 'generic', color: '#888', route: 'none' }; }
   function isCart(c) { return c.indexOf('cart-') === 0; }
 
   // ---------- 3D case ----------
@@ -269,7 +269,7 @@
       '<div class="card form"><h2 style="margin-top:0">Sources <span class="count">folders on this PC</span></h2>' +
       (cfg.sources.length ? cfg.sources.map(function (s) { return '<div class="row"><div class="grow"><div class="title">' + esc(s.path) + '</div><div class="sub">' + esc(sysOf(s.system).name || s.system) + '</div></div><button class="btn small" data-smb="' + esc(s.path) + '" data-nav title="Play this folder in place from RetroArch over SMB">Share</button><button class="btn small danger" data-rm="' + esc(s.path) + '" data-nav>Remove</button></div>'; }).join('') : '<p class="muted">No folders yet.</p>') +
       '<label>Add a folder</label><div class="inline"><input id="src-path" placeholder="D:\\Games\\PS1"><button class="btn small" id="src-browse" data-nav>Browse…</button></div>' +
-      '<label>Which console is in it?</label><select id="src-sys"><option value="mixed">Mixed (guess by file type, unambiguous only)</option>' + state.app.systems.filter(function (s) { return s.route !== 'elf'; }).map(function (s) { return '<option value="' + s.id + '">' + esc(s.name) + '</option>'; }).join('') + '</select>' +
+      '<label>Which console is in it?</label><select id="src-sys"><option value="mixed">Mixed (guess by file type, unambiguous only)</option>' + state.app.systems.map(function (s) { return '<option value="' + s.id + '">' + esc(s.name) + '</option>'; }).join('') + '</select>' +
       '<p><button class="btn gold" id="src-add" data-nav>Add source</button> <button class="btn" id="rescan" data-nav>Rescan all</button></p></div></div>';
     html += '<div class="card" style="margin-top:20px"><h2 style="margin-top:0">Destinations <span class="count">where each console\'s games go on the PS5</span></h2><p class="muted">Blank uses the default. {ra} is the RetroArch folder above.</p><table class="dest-table">' +
       state.app.systems.filter(function (s) { return s.route === 'ftp'; }).map(function (s) {

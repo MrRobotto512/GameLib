@@ -190,7 +190,7 @@ The destination table is data (`systems.toml`), editable in Settings → Destina
 | **Sega** Genesis, Master System, Game Gear, Sega CD, 32X, Saturn, Dreamcast | RetroArch | `RA/content/{genesis,mastersystem,gamegear,segacd,sega32x,saturn,dreamcast}/` | `.zip`, `.chd`, `.cue`, `.gdi` | Copy. Saturn BIOS → `RA/system/Saturn/`. |
 | **Arcade / Neo Geo / PC Engine / Atari / C64 / Amiga / DOS / ScummVM / 3DO / …** | RetroArch | `RA/content/<es-de name>/` | per core | Copy. Full ES-DE name list ships in `systems.toml`. |
 | **PS5 game images** | ShadowMount+ | `/data/homebrew/` | `.exfat` `.ffpkg` `.ffpfs` `.ffpfsc` | Copy (secondary) |
-| **Homebrew payloads** | etaHEN ELF loader | port 9021 | `.elf`, `.bin` | Send |
+| **Homebrew payloads** | etaHEN ELF loader | port 9021 | `.elf`, `.bin` | Settings → Payloads (not a store department) |
 | **Anything else** | — | you pick the path in the remote browser | any | Manual copy |
 
 Rules the worker follows for every copy:

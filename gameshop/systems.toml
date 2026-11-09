@@ -504,16 +504,3 @@ group = "folder"
 case = "generic"
 color = "#c86400"
 thumbs = "ScummVM"
-
-[[system]]
-id = "homebrew"
-name = "Payloads"
-maker = "Homebrew"
-route = "elf"
-dest = ""
-exts = ["elf", "bin"]
-group = "file"
-case = "generic"
-color = "#f5c451"
-thumbs = ""
-note = "Sent to the ELF loader on port 9021. Send kstuff, then ShadowMount+, then etaHEN after a reboot."

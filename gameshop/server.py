@@ -265,7 +265,7 @@ class Agent:
             if not path.is_file():
                 raise HTTPException(400, f"{p.get('name') or path.name}: file not found")
             delay = float(p.get("delay") or 0) if i else 0.0
-            jid = self.db.add_job(item_id=None, title=p.get("name") or path.name, system="homebrew", route="elf",
+            jid = self.db.add_job(item_id=None, title=p.get("name") or path.name, system="payload", route="elf",
                                   src=[[str(path), path.name]], dest="", total=path.stat().st_size, opts={"delay": delay})
             jobs.append(self.db.job(jid))
         self.worker.wake()

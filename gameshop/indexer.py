@@ -159,8 +159,6 @@ class Indexer:
                 parsed.title = info.title
         elif ext in ("exfat", "ffpkg", "ffpfs", "ffpfsc"):
             kind = "image"
-        elif ext in ("elf", "bin") and system.id == "homebrew":
-            kind = "elf"
         if parsed.disc:
             meta["disc"] = parsed.disc
         file_rows = [[f.relative_to(root).as_posix(), _size(f)] for f in files]
