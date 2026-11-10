@@ -90,32 +90,34 @@ def download(rel: Release, progress: Callable[[int, int], None] | None = None) -
 
 
 def swap_script(exe: Path, new_exe: Path, pid: int, args: list[str]) -> str:
-    """The cmd script that waits for `pid` to exit, moves new_exe over exe and starts exe again."""
+    """The cmd script that moves new_exe over exe once we have exited, then starts exe again.
+
+    Windows will not let the running exe be overwritten, so the move itself is the wait: it
+    fails until this process and the PyInstaller bootloader that started it are gone. Only cmd
+    built-ins and `ping` (as a one-second sleep) are used: `timeout` refuses to run without a
+    console and `tasklist | find` opened a console window per try. `pid` is kept for the log."""
     quoted = " ".join(f'"{a}"' for a in args)
     return (
         "@echo off\r\n"
-        f"set PID={pid}\r\n"
-        ":wait\r\n"
-        'tasklist /FI "PID eq %PID%" 2>NUL | find "%PID%" >NUL\r\n'
-        "if not errorlevel 1 (timeout /t 1 /nobreak >NUL & goto wait)\r\n"
-        # the PyInstaller bootloader (our parent) exits a moment after we do and keeps the exe
-        # locked until then, so retry the move for up to a minute
+        f"rem Game Shop update: waiting for process {pid} to exit\r\n"
         "set TRIES=0\r\n"
         ":move\r\n"
+        "ping -n 2 127.0.0.1 >NUL\r\n"
         f'move /y "{new_exe}" "{exe}" >NUL 2>&1\r\n'
         "if not errorlevel 1 goto start\r\n"
         "set /a TRIES+=1\r\n"
-        "if %TRIES% GEQ 60 goto done\r\n"
-        "timeout /t 1 /nobreak >NUL\r\n"
+        "if %TRIES% GEQ 120 goto done\r\n"
         "goto move\r\n"
         ":start\r\n"
-        f'start "" "{exe}" {quoted}\r\n'
+        f'start "" /d "{exe.parent}" "{exe}" {quoted}\r\n'
         ":done\r\n"
         'del "%~f0"\r\n')
 
 
 def run_detached(cmd: list[str], cwd: Path) -> None:
-    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    """Start `cmd` with a hidden console of its own, so it outlives us and nothing it runs
+    pops up a window."""
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     subprocess.Popen(cmd, creationflags=flags, close_fds=True, cwd=str(cwd),  # noqa: S603
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
