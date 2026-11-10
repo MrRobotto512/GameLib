@@ -109,11 +109,33 @@ h2 .count { color: var(--dim); font-size: 14px; font-weight: 600; }
   display: flex; align-items: center; justify-content: center; }
 .case .spine span { color: #fff; font-size: calc(9px * var(--scale)); font-weight: 700; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; overflow: hidden; max-height: 90%; opacity: .85; letter-spacing: 1px; }
 .case .front img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* the printed insert: a cover scan fills the front; a square icon sits under the system strip
+   with its own colours blurred behind it, the way a store listing is laid out */
+.case .ins { position: absolute; inset: 0; background: #141414; overflow: hidden; }
+.case .ins img.bg { display: none; }
+.case .front::before { content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(118deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,.06) 28%, transparent 42%, transparent 70%, rgba(255,255,255,.05) 100%); }
+.case.sq .ins img.bg { display: block; position: absolute; inset: -12%; width: 124%; height: 124%; filter: blur(14px) saturate(1.5) brightness(.75); }
+.case.sq .ins img:not(.bg) { position: absolute; left: 0; top: var(--bandh); width: 100%; height: calc(100% - var(--bandh)); object-fit: contain; object-position: center 12%; }
 .case .gen { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; padding: 10% 9%;
   background: var(--sys); background: linear-gradient(160deg, color-mix(in srgb, var(--sys) 85%, #fff) 0%, var(--sys) 45%, color-mix(in srgb, var(--sys) 40%, #000) 100%); }
 .case .gen .g-title { font-weight: 800; color: #fff; font-size: calc(15px * var(--scale)); line-height: 1.1; text-shadow: 0 2px 6px rgba(0,0,0,.5); word-break: break-word; }
 .case .gen .g-sys { font-size: calc(9px * var(--scale)); letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,.8); margin-bottom: 6px; font-weight: 700; }
-.case .band { position: absolute; left: 0; right: 0; top: 0; height: 8%; background: var(--shell); opacity: .95; display: flex; align-items: center; padding-left: 6%; font-size: calc(7px * var(--scale)); letter-spacing: 2px; font-weight: 800; color: #fff; }
+.case { --bandh: 8%; --band: var(--shell); --band-fg: #fff; }
+.case .band { position: absolute; left: 0; right: 0; top: 0; height: var(--bandh); background: var(--band); color: var(--band-fg); z-index: 2; display: none; align-items: center; gap: 4%; padding-left: 5%;
+  font-size: calc(6.5px * var(--scale)); letter-spacing: .7px; font-weight: 800; white-space: nowrap; overflow: hidden; }
+.case.sq .band, .case.noart .band { display: flex; }
+.case .band .sw { flex: none; width: calc(8px * var(--scale)); height: calc(9px * var(--scale)); border-radius: 30%;
+  background: linear-gradient(90deg, var(--band-fg) 0 44%, transparent 44% 56%, var(--band-fg) 56%); }
+.case[data-sys=switch] { --bandh: 10%; --band: #fff; --band-fg: #e60012; }
+.case[data-sys=ps2] { --band: #000; }
+.case[data-sys=ps3] { --band: #0d0d0d; --bandh: 7%; }
+.case[data-sys=ps4] { --band: #003791; --bandh: 7%; }
+.case[data-sys=ps5] { --band: #fff; --band-fg: #111; --bandh: 7%; }
+.case[data-sys=psp] { --band: #1b1b1b; --bandh: 6%; }
+.case[data-sys=gc] { --band: #0e0e0e; }
+.case[data-sys=wii] { --band: #fff; --band-fg: #7b7b7b; }
+.case[data-sys=xbox], .case[data-sys=xbox360] { --band: #107c10; }
 .case.spin { animation: spin 9s ease-in-out infinite; }
 @keyframes spin { 0%,100% { transform: rotateY(-28deg) rotateX(4deg);} 50% { transform: rotateY(28deg) rotateX(4deg);} }
 .case.flip { transform: rotateY(180deg); }
@@ -126,7 +148,7 @@ h2 .count { color: var(--dim); font-size: 14px; font-weight: 600; }
 .case.mini-dvd { --w: 135px; --h: 190px; --d: 14px; --shell: #5c3fa6; }
 .case.umd { --w: 100px; --h: 170px; --d: 12px; --shell: #9aa0ad; }
 .case.switch { --w: 105px; --h: 170px; --d: 10px; --shell: #e60012; }
-.case.switch .front img { object-fit: contain; object-position: center 28%; background: #141414; }
+.case.switch .front { border-width: 3px; border-radius: 5px; }
 .case.generic { --w: 135px; --h: 190px; --d: 12px; --shell: #555a6a; }
 /* cartridges: one slab, no spine text, label window */
 .case.cart { --d: 16px; filter: drop-shadow(0 18px 18px rgba(0,0,0,.55)); }
@@ -151,10 +173,11 @@ h2 .count { color: var(--dim); font-size: 14px; font-weight: 600; }
 .case.box-tall { --w: 120px; --h: 168px; --d: 14px; }
 .case.box-small { --w: 100px; --h: 125px; --d: 12px; }
 .case.box-wide { --w: 170px; --h: 118px; --d: 14px; }
-.case.box-tall .front, .case.box-small .front, .case.box-wide .front { border: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); }
+.case.box-tall .front, .case.box-small .front, .case.box-wide .front { border: none; border-radius: 2px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), inset 2px 0 3px rgba(0,0,0,.35); }
+.case.box-tall .front::before, .case.box-small .front::before, .case.box-wide .front::before { background: linear-gradient(90deg, rgba(0,0,0,.18) 0, transparent 6%), linear-gradient(180deg, rgba(255,255,255,.07), transparent 30%); }
+.case.box-tall .back, .case.box-small .back, .case.box-wide .back { border-radius: 2px; }
 .case.clam { --w: 125px; --h: 180px; --d: 16px; --shell: #1a1a1a; }
 .case.clam .front { border-color: #2e2e2e; border-radius: 6px; }
-.case.clam .front::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, rgba(255,255,255,.14) 0%, transparent 35%); pointer-events: none; }
 .case.ds-box { --w: 110px; --h: 125px; --d: 12px; --shell: #e4e4e8; }
 .case.ds-box .front { border-color: rgba(255,255,255,.55); }
 /* the media itself (Box / Cart chip in the header): disc, Switch game card, floppy; cartridges above */

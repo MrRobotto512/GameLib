@@ -149,7 +149,12 @@ Discover ─ hero (featured / recently added / "continue downloading") + shelves
   systems). The *Box / Cart* chip in the header, the *Show the cartridge / disc* button on a
   product page and *Settings → Show games as* switch to the media itself: the cartridge, a disc
   with the cover on it, a Switch game card or a floppy for the computers. The choice is stored
-  in the browser (`gameshop.view`), so the PS5 and the PC can differ.
+  in the browser (`gameshop.view`), so the PS5 and the PC can differ. A box is drawn as the
+  printed insert under a plastic sleeve (or matte cardboard): a cover scan fills the front as
+  is, while a square icon (Switch, package icons) is laid out the way the real insert is, with
+  the system's strip along the top (white *Nintendo Switch*, blue *PS4*, black *PS3*, …) and
+  the icon's own colours blurred behind it instead of black bars. The page decides from the
+  picture's shape when it loads (`artLoaded`), not from the system.
 - **Cover art** comes from **libretro-thumbnails** (GitHub, per-system repositories with
   `Named_Boxarts/`, `Named_Snaps/`, `Named_Titles/`, matched by No‑Intro / Redump names). **Switch**
   has no libretro set, so its icons, banners, screenshots and facts come from the community

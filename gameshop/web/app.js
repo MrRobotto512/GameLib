@@ -43,18 +43,34 @@
   function isMedia(el) { return ['cart', 'disc', 'card', 'floppy'].some(function (k) { return el.classList.contains(k); }); }
 
   // ---------- 3D case ----------
+  // What the printed insert says along its top strip. Box scans already carry it, so the strip
+  // is only drawn when the art is a square icon (Switch, package icons) or there is no art.
+  var BAND = { switch: 'NINTENDO SWITCH', ps2: 'PlayStation 2', ps3: 'PS3', ps4: 'PS4', ps5: 'PS5', psp: 'PSP',
+    xbox: 'XBOX', xbox360: 'XBOX 360', wii: 'Wii', gc: 'NINTENDO GAMECUBE' };
+  function artLoaded(img) {
+    // a square or landscape picture in a portrait box is an icon, not a cover scan: show it as an
+    // insert (strip on top, icon below, its own colours blurred behind) instead of cropping it
+    var c = img.closest('.case');
+    if (!c) return;
+    var cr = c.offsetHeight ? c.offsetWidth / c.offsetHeight : .75;
+    c.classList.toggle('sq', img.naturalWidth > img.naturalHeight * cr * 1.2);
+  }
+  window.artLoaded = artLoaded;
   function caseHTML(item, opts) {
     opts = opts || {};
     var sys = sysOf(item.system);
     var c = viewCase(item.case || sys.case || 'generic', sys.id);
     var kind = c.split(' ')[0];
     var labeled = isCart(c) || kind === 'card' || kind === 'floppy';
-    var cls = 'case ' + c + (isCart(c) ? ' cart' : '') + (opts.spin ? ' spin' : '');
-    var band = kind === 'bd' || kind === 'dvd' || kind === 'switch';
+    var cls = 'case ' + c + (isCart(c) ? ' cart' : '') + (opts.spin ? ' spin' : '') + (item.art ? '' : ' noart');
+    var band = kind === 'bd' || kind === 'dvd' || kind === 'mini-dvd' || kind === 'umd' || kind === 'switch';
     var gen = '<div class="gen">' + (band ? '' : '<div class="g-sys">' + esc(sys.name) + '</div>') + '<div class="g-title">' + esc(item.title) + '</div></div>';
-    var img = item.art ? '<img src="/art/' + item.id + '" alt="" onerror="this.parentNode.innerHTML=this.nextSibling.innerHTML" loading="lazy"><template>' + gen + '</template>' : gen;
-    var front = labeled ? '<div class="label">' + img + '</div>' : img + (band ? '<div class="band">' + esc(sys.name.toUpperCase()) + '</div>' : '');
-    return '<div class="' + cls + '" style="--sys:' + esc(sys.color) + '">' +
+    var src = '/art/' + item.id;
+    var img = item.art ? '<img src="' + src + '" alt="" onload="artLoaded(this)" onerror="this.closest(\'.case\').classList.add(\'noart\');this.parentNode.innerHTML=this.nextSibling.innerHTML" loading="lazy"><template>' + gen + '</template>' : gen;
+    var front = labeled ? '<div class="label">' + img + '</div>' :
+      '<div class="ins">' + (item.art ? '<img class="bg" src="' + src + '" alt="" aria-hidden="true" loading="lazy">' : '') + img + '</div>' +
+      (band ? '<div class="band">' + (sys.id === 'switch' ? '<i class="sw"></i>' : '') + esc(BAND[sys.id] || sys.name.toUpperCase()) + '</div>' : '');
+    return '<div class="' + cls + '" data-sys="' + esc(sys.id) + '" style="--sys:' + esc(sys.color) + '">' +
       '<div class="face front">' + front + '</div>' +
       '<div class="face spine"><span>' + esc(item.title) + '</span></div>' +
       '<div class="face back"></div></div>';
