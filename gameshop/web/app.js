@@ -4,7 +4,7 @@
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var view = $('#view');
-  var state = { app: null, systems: {}, jobs: [], tv: false, route: '' };
+  var state = { app: null, systems: {}, jobs: [], tv: false, route: '', view: 'box' };
 
   // ---------- helpers ----------
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -25,17 +25,35 @@
   function toast(msg, ms) { var t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, ms || 3200); }
   function sysOf(id) { return state.systems[id] || { id: id, name: id === 'payload' ? 'Payload' : id, case: 'generic', color: '#888', route: 'none' }; }
   function isCart(c) { return c.indexOf('cart-') === 0; }
+  // Two ways to show a game: the retail box (default) or the media itself (cartridge, disc, card, floppy).
+  // systems.toml names the media for cartridge systems and the box for disc systems; these map across.
+  var BOX = { 'cart-nes': 'box-tall', 'cart-snes': 'box-wide', 'cart-n64': 'box-wide', 'cart-gb': 'box-small', 'cart-genesis': 'clam',
+    'cart-sms': 'clam', 'cart-ds': 'ds-box', 'cart-2600': 'box-tall', 'cart-lynx': 'box-small' };
+  var BOX_BY_SYS = { pcengine: 'jewel', atarijaguar: 'box-tall', gamegear: 'box-small' };
+  var MEDIA = { jewel: 'disc', dvd: 'disc', bd: 'disc', 'mini-dvd': 'disc mini', umd: 'disc mini', switch: 'card', generic: 'floppy' };
+  function viewCase(c, sysId) {
+    if (state.view === 'media') return isCart(c) ? c : (MEDIA[c] || c);
+    return isCart(c) ? (BOX_BY_SYS[sysId] || BOX[c] || 'box-tall') : c;
+  }
+  function mediaName(c) {
+    if (isCart(c)) return 'cartridge';
+    var m = (MEDIA[c] || '').split(' ')[0];
+    return m === 'card' ? 'game card' : m === 'floppy' ? 'disk' : 'disc';
+  }
+  function isMedia(el) { return ['cart', 'disc', 'card', 'floppy'].some(function (k) { return el.classList.contains(k); }); }
 
   // ---------- 3D case ----------
   function caseHTML(item, opts) {
     opts = opts || {};
     var sys = sysOf(item.system);
-    var c = item.case || sys.case || 'generic';
+    var c = viewCase(item.case || sys.case || 'generic', sys.id);
+    var kind = c.split(' ')[0];
+    var labeled = isCart(c) || kind === 'card' || kind === 'floppy';
     var cls = 'case ' + c + (isCart(c) ? ' cart' : '') + (opts.spin ? ' spin' : '');
-    var band = c === 'bd' || c === 'dvd' || c === 'switch';
+    var band = kind === 'bd' || kind === 'dvd' || kind === 'switch';
     var gen = '<div class="gen">' + (band ? '' : '<div class="g-sys">' + esc(sys.name) + '</div>') + '<div class="g-title">' + esc(item.title) + '</div></div>';
     var img = item.art ? '<img src="/art/' + item.id + '" alt="" onerror="this.parentNode.innerHTML=this.nextSibling.innerHTML" loading="lazy"><template>' + gen + '</template>' : gen;
-    var front = isCart(c) ? '<div class="label">' + img + '</div>' : img + (band ? '<div class="band">' + esc(sys.name.toUpperCase()) + '</div>' : '');
+    var front = labeled ? '<div class="label">' + img + '</div>' : img + (band ? '<div class="band">' + esc(sys.name.toUpperCase()) + '</div>' : '');
     return '<div class="' + cls + '" style="--sys:' + esc(sys.color) + '">' +
       '<div class="face front">' + front + '</div>' +
       '<div class="face spine"><span>' + esc(item.title) + '</span></div>' +
@@ -59,7 +77,7 @@
       '<div class="t-sub"><span>' + esc(sys.name) + '</span>' + (item.facts && item.facts.year ? '<span>· ' + esc(item.facts.year) + '</span>' : item.region ? '<span>· ' + esc(item.region) + '</span>' : '') + '<span>· ' + fmtSize(item.size) + '</span></div></a>';
   }
   function shelfHTML(items) { return '<div class="shelf">' + items.map(tileHTML).join('') + '</div>'; }
-  function scaleTiles(root) { $$('.tile .case', root).forEach(function (c) { c.style.setProperty('--scale', c.classList.contains('cart') ? '0.95' : '0.85'); }); }
+  function scaleTiles(root) { $$('.tile .case', root).forEach(function (c) { c.style.setProperty('--scale', c.classList.contains('card') ? '1.6' : isMedia(c) ? '0.95' : '0.85'); }); }
 
   // ---------- pages ----------
   var pages = {};
@@ -84,7 +102,7 @@
         html += '<h2><a href="#/dept/' + s.system + '" data-nav>' + esc(s.name) + '</a> <span class="count">' + s.count + '</span></h2>' + shelfHTML(s.items);
       });
       view.innerHTML = html;
-      $$('.hero-art .case').forEach(function (c) { c.style.setProperty('--scale', c.classList.contains('cart') ? '1.7' : '1.45'); });
+      $$('.hero-art .case').forEach(function (c) { c.style.setProperty('--scale', c.classList.contains('card') ? '2.8' : isMedia(c) ? '1.7' : '1.45'); });
       scaleTiles(view);
     });
   };
@@ -144,13 +162,14 @@
         (meta.pkg_title ? '<dt>Package title</dt><dd>' + esc(meta.pkg_title) + '</dd>' : '') + (meta.content_id ? '<dt>Content ID</dt><dd>' + esc(meta.content_id) + '</dd>' : '') +
         (meta.app_version ? '<dt>Version</dt><dd>' + esc(meta.app_version) + '</dd>' : '') +
         '<dt>Goes to</dt><dd>' + (it.route === 'dpi' ? 'Installed by the PS5 (Direct Package Installer)' : it.route === 'elf' ? 'ELF loader, port 9021' : esc(it.dest || 'no folder set')) + '</dd></dl>' +
-        '<p style="margin-top:22px"><button class="btn small" id="flip" data-nav>Flip the case</button> ' +
+        '<p style="margin-top:22px"><button class="btn small" id="flip" data-nav>Flip it over</button> <button class="btn small" id="view-swap" data-nav>' + (state.view === 'media' ? 'Show the box' : 'Show the ' + mediaName(it.case || sysOf(it.system).case || 'generic')) + '</button> ' +
         (it.tile_possible ? '<button class="btn small" id="tile" data-nav title="Make a home-screen tile in RetroArch (needs its WebUI running)">Add to PS5 home screen</button>' : '') + '</p>' +
         (it.art ? '<div class="shots" id="shots"><img src="/art/' + it.id + '?kind=snap" alt="" onerror="this.remove()"><img src="/art/' + it.id + '?kind=title" alt="" onerror="this.remove()"></div>' : '') + '</div>' +
         '<div class="card get" id="get"></div></div>';
       view.innerHTML = html;
-      $('#stage .case').style.setProperty('--scale', isCart(it.case) ? '2.2' : '2.3');
+      var sc = $('#stage .case'); sc.style.setProperty('--scale', sc.classList.contains('card') ? '3.2' : isMedia(sc) ? '2.1' : '2.3');
       $('#flip').addEventListener('click', function () { var c = $('#stage .case'); c.classList.remove('spin'); c.classList.toggle('flip'); });
+      $('#view-swap').addEventListener('click', function () { setView(state.view === 'media' ? 'box' : 'media'); });
       var tileBtn = $('#tile');
       if (tileBtn) tileBtn.addEventListener('click', function () { tileBtn.disabled = true; api('/api/items/' + it.id + '/tile', { method: 'POST' }).then(function () { toast('Tile created. It appears on the home screen once RetroArch closes.', 5000); }).catch(function (e) { toast(e.message, 6000); }).then(function () { tileBtn.disabled = false; }); });
       renderGet(it, st);
@@ -265,6 +284,7 @@
       '<label>RetroArch title folder on the PS5</label><input id="ra-root" value="' + esc(cfg.ra_root) + '">' +
       '<label><input type="checkbox" id="skip" ' + (cfg.skip_existing ? 'checked' : '') + ' style="width:auto"> Skip files already on the PS5 with the same size</label>' +
       '<label><input type="checkbox" id="art" ' + (cfg.art_enabled ? 'checked' : '') + ' style="width:auto"> Fetch cover art from libretro-thumbnails (this PC needs internet)</label>' +
+      '<label>Show games as</label><select id="view-sel"><option value="box"' + (state.view === 'media' ? '' : ' selected') + '>The retail box</option><option value="media"' + (state.view === 'media' ? ' selected' : '') + '>The cartridge or disc</option></select>' +
       '<p><button class="btn" id="opts-save" data-nav>Save options</button></p></div>' +
       '<div class="card form"><h2 style="margin-top:0">Sources <span class="count">folders on this PC</span></h2>' +
       (cfg.sources.length ? cfg.sources.map(function (s) { return '<div class="row"><div class="grow"><div class="title">' + esc(s.path) + '</div><div class="sub">' + esc(sysOf(s.system).name || s.system) + '</div></div><button class="btn small" data-smb="' + esc(s.path) + '" data-nav title="Play this folder in place from RetroArch over SMB">Share</button><button class="btn small danger" data-rm="' + esc(s.path) + '" data-nav>Remove</button></div>'; }).join('') : '<p class="muted">No folders yet.</p>') +
@@ -297,6 +317,7 @@
       '<p class="toolbar"><button class="btn gold" id="copy-manual" data-nav>Copy selected → PS5 folder</button><span class="muted" id="sel-info"></span><span style="flex:1"></span>' +
       '<input id="elf-path" placeholder="C:\\payloads\\etaHEN.elf" style="width:320px"><button class="btn" id="elf-send" data-nav>Send payload (9021)</button></p></div>';
     view.innerHTML = html;
+    $('#view-sel').addEventListener('change', function () { setView(this.value); });
 
     $('#ps5-save').addEventListener('click', function () { api('/api/config', { method: 'PUT', body: { ps5_host: $('#ps5-host').value.trim() } }).then(function () { toast('Saved'); return loadState(true); }).then(render); });
     $('#ps5-scan').addEventListener('click', function () { toast('Scanning the network…', 8000); api('/api/ps5/scan', { method: 'POST', body: {} }).then(function (r) { if (!r.found.length) return toast('No PS5 answered on ' + r.prefix + '.x'); $('#ps5-host').value = r.found[0]; toast('Found ' + r.found.join(', ')); }); });
@@ -445,6 +466,13 @@
     });
     if (best) setFocus(best);
   }
+  function setView(v, quiet) {
+    state.view = v === 'media' ? 'media' : 'box';
+    $('#view-toggle').textContent = state.view === 'media' ? 'Cart' : 'Box';
+    $('#view-toggle').title = state.view === 'media' ? 'Showing the cartridge or disc. Click for the retail box.' : 'Showing the retail box. Click for the cartridge or disc.';
+    try { localStorage.setItem('gameshop.view', state.view); } catch (e) { }
+    if (!quiet) render();
+  }
   function setTV(on) {
     state.tv = on; document.body.classList.toggle('tv', on); $('#tv-toggle').classList.toggle('on', on);
     try { localStorage.setItem('gameshop.tv', on ? '1' : ''); } catch (e) { }
@@ -472,12 +500,15 @@
   });
   document.addEventListener('focusin', function (ev) { var el = ev.target.closest('[data-nav], li[tabindex]'); if (el) { $$('.focused').forEach(function (e) { if (e !== el) e.classList.remove('focused'); }); el.classList.add('focused'); } });
   $('#tv-toggle').addEventListener('click', function () { setTV(!state.tv); });
+  $('#view-toggle').addEventListener('click', function () { setView(state.view === 'media' ? 'box' : 'media'); });
   $('#ps5-chip').addEventListener('click', function () { location.hash = '#/settings'; });
   $('#search-form').addEventListener('submit', function (ev) { ev.preventDefault(); var q = $('#search').value.trim(); if (!q) return; api('/api/items?q=' + encodeURIComponent(q) + '&limit=60').then(function (items) { view.innerHTML = '<h1>Search: ' + esc(q) + '</h1>' + (items.length ? '<div class="tiles">' + items.map(tileHTML).join('') + '</div>' : '<div class="empty">Nothing found.</div>'); scaleTiles(view); }); });
   window.addEventListener('hashchange', render);
 
   // ---------- boot ----------
   var tv = false; try { tv = !!localStorage.getItem('gameshop.tv'); } catch (e) { }
+  var viewPref = 'box'; try { viewPref = localStorage.getItem('gameshop.view') || 'box'; } catch (e) { }
+  setView(viewPref, true);
   if (/PlayStation/i.test(navigator.userAgent)) tv = true;
   loadState(true).then(function () { setTV(tv); render(); refreshJobs(); });
   setInterval(function () { refreshJobs(); }, 2500);

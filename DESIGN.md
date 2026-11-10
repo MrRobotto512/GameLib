@@ -144,6 +144,12 @@ Discover ─ hero (featured / recently added / "continue downloading") + shelves
   PS2 blue DVD case, PS3 clear case, PS4 blue case, Switch red case, N64 grey cartridge, SNES/NES
   cartridges, Genesis clamshell, GameCube mini case, Dreamcast jewel case, Xbox 360 green case,
   generic case otherwise. Templates are SVG/CSS, themed per region (NTSC / PAL / JP).
+- **Box or media.** The default view is the retail box for every system (cardboard boxes for
+  NES / SNES / N64 / Game Boy / Atari, clamshells for Sega, plastic cases for DS and the disc
+  systems). The *Box / Cart* chip in the header, the *Show the cartridge / disc* button on a
+  product page and *Settings → Show games as* switch to the media itself: the cartridge, a disc
+  with the cover on it, a Switch game card or a floppy for the computers. The choice is stored
+  in the browser (`gameshop.view`), so the PS5 and the PC can differ.
 - **Cover art** comes from **libretro-thumbnails** (GitHub, per-system repositories with
   `Named_Boxarts/`, `Named_Snaps/`, `Named_Titles/`, matched by No‑Intro / Redump names). **Switch**
   has no libretro set, so its icons, banners, screenshots and facts come from the community

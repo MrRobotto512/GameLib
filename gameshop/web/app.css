@@ -147,13 +147,50 @@ h2 .count { color: var(--dim); font-size: 14px; font-weight: 600; }
 .case.cart-2600 { --w: 95px; --h: 140px; --shell: #2b2b2b; } .case.cart-2600 .label { left: 10%; top: 6%; width: 80%; height: 60%; }
 .case.cart-lynx { --w: 90px; --h: 100px; --shell: #3a3a3a; } .case.cart-lynx .label { left: 10%; top: 10%; width: 80%; height: 72%; }
 .case.arcade { --w: 170px; --h: 95px; --d: 8px; --shell: #ff6a00; } .case.arcade .front { border-width: 4px; }
+/* retail boxes for cartridge systems (the default view) */
+.case.box-tall { --w: 120px; --h: 168px; --d: 14px; }
+.case.box-small { --w: 100px; --h: 125px; --d: 12px; }
+.case.box-wide { --w: 170px; --h: 118px; --d: 14px; }
+.case.box-tall .front, .case.box-small .front, .case.box-wide .front { border: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); }
+.case.clam { --w: 125px; --h: 180px; --d: 16px; --shell: #1a1a1a; }
+.case.clam .front { border-color: #2e2e2e; border-radius: 6px; }
+.case.clam .front::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, rgba(255,255,255,.14) 0%, transparent 35%); pointer-events: none; }
+.case.ds-box { --w: 110px; --h: 125px; --d: 12px; --shell: #e4e4e8; }
+.case.ds-box .front { border-color: rgba(255,255,255,.55); }
+/* the media itself (Box / Cart chip in the header): disc, Switch game card, floppy; cartridges above */
+.case.disc { --w: 125px; --h: 125px; --d: 2px; filter: drop-shadow(0 18px 18px rgba(0,0,0,.55)); }
+.case.disc.mini { --w: 90px; --h: 90px; }
+.case.disc .face { border-radius: 50%; }
+.case.disc .front { border: 2px solid rgba(255,255,255,.4); background: #111; }
+.case.disc .front::before { content: ""; position: absolute; inset: 0; border-radius: 50%; z-index: 1; pointer-events: none;
+  background: conic-gradient(from 0deg, transparent 0 28%, rgba(255,255,255,.28) 35%, transparent 42% 68%, rgba(255,255,255,.2) 76%, transparent 84%); }
+.case.disc .front::after { content: ""; position: absolute; left: 50%; top: 50%; width: 24%; height: 24%; transform: translate(-50%,-50%); border-radius: 50%; z-index: 2;
+  background: radial-gradient(circle, #0b0b14 0 36%, rgba(255,255,255,.6) 38% 46%, #d2d5de 48% 100%); box-shadow: 0 0 0 1px rgba(0,0,0,.5); }
+.case.disc .spine { display: none; }
+.case.disc .back { background: #d6d8e0; background: radial-gradient(circle, #0b0b14 0 9%, #eceef3 10% 16%, #b7bbc7 50%, #e4e6ed 100%); }
+.case.card { --w: 62px; --h: 70px; --d: 4px; --shell: #2b2b2b; filter: drop-shadow(0 12px 12px rgba(0,0,0,.55)); }
+.case.card .front { border: none; background: var(--shell); border-radius: 5px 5px 3px 3px; }
+.case.card .front .label { position: absolute; left: 8%; top: 8%; width: 84%; height: 74%; border-radius: 2px; overflow: hidden; background: #111; }
+.case.card .front .label img, .case.card .front .label .gen { width: 100%; height: 100%; object-fit: cover; }
+.case.card .gen { padding: 6%; } .case.card .gen .g-sys { display: none; } .case.card .gen .g-title { font-size: calc(6px * var(--scale)); }
+.case.card .spine span { display: none; }
+.case.floppy { --w: 118px; --h: 124px; --d: 4px; filter: drop-shadow(0 14px 14px rgba(0,0,0,.55)); }
+.case.floppy .front { border: none; background: var(--shell); background: color-mix(in srgb, var(--shell) 55%, #1b1b22); border-radius: 6px 6px 3px 3px; }
+.case.floppy .front .label { position: absolute; left: 9%; top: 6%; width: 82%; height: 56%; border-radius: 2px; overflow: hidden; background: #111; }
+.case.floppy .front .label img, .case.floppy .front .label .gen { width: 100%; height: 100%; }
+.case.floppy .gen .g-title { font-size: calc(10px * var(--scale)); }
+.case.floppy .front::after { content: ""; position: absolute; left: 31%; bottom: 0; width: 38%; height: 27%; border-radius: 2px 2px 0 0;
+  background: linear-gradient(#b9bdc7, #8d929c); }
+.case.floppy .front::before { content: ""; position: absolute; left: 36%; bottom: 4%; width: 11%; height: 19%; background: #0a0a0e; z-index: 1; border-radius: 1px; }
+.case.floppy .spine span { display: none; }
 
 /* ---------- product page ---------- */
 .product { display: grid; grid-template-columns: 420px 1fr 320px; gap: 36px; align-items: start; }
 .product .art-stage { min-height: 420px; display: flex; align-items: center; justify-content: center; perspective: 1400px; border-radius: 28px;
   background: transparent; background: radial-gradient(400px 300px at 50% 50%, color-mix(in srgb, var(--sys) 45%, transparent), transparent 70%); }
 .product .art-stage .case { --scale: 2.2; }
-.product .art-stage .case.cart { --scale: 2; }
+.product .art-stage .case.cart, .product .art-stage .case.disc, .product .art-stage .case.floppy { --scale: 2.1; }
+.product .art-stage .case.card { --scale: 3.2; }
 .product h1 { font-size: 46px; }
 .chips { margin: 14px 0; }
 .facts { display: grid; grid-template-columns: 140px 1fr; gap: 8px 16px; font-size: 15px; margin-top: 18px; }
@@ -205,7 +242,9 @@ h2 .count { color: var(--dim); font-size: 14px; font-weight: 600; }
   background: #171331; background: linear-gradient(135deg, color-mix(in srgb, var(--sys) 30%, #171331), #110e22); }
 .dept-card .n { font-weight: 700; } .dept-card .c { color: var(--muted); font-size: 13px; }
 .dept-card .case { --scale: .42; }
-.dept-card .case.cart { --scale: .5; }
+.dept-card .case.cart, .dept-card .case.disc, .dept-card .case.floppy { --scale: .5; }
+.dept-card .case.card { --scale: .9; }
+.dept-head .case.card { --scale: 1; }
 .note { background: rgba(245,196,81,.08); border: 1px solid rgba(245,196,81,.3); border-radius: 12px; padding: 12px 16px; color: #ffe2a0; font-size: 14px; margin: 10px 0 16px; }
 
 /* ---------- toast / modal ---------- */
@@ -250,7 +289,8 @@ body.tv .tv-only { display: inline-block; align-self: center; color: var(--muted
 body.tv .tile { flex-basis: 340px; height: 200px; border-radius: 22px; padding: 14px 20px; }
 body.tv .tile .art-wrap { inset: 0 0 56px 0; }
 body.tv .tile .case { --scale: .55 !important; }
-body.tv .tile .case.cart { --scale: .7 !important; }
+body.tv .tile .case.cart, body.tv .tile .case.disc, body.tv .tile .case.floppy { --scale: .7 !important; }
+body.tv .tile .case.card { --scale: 1.3 !important; }
 body.tv .tile .t-title { font-size: 20px; }
 body.tv .tile .t-sub { font-size: 14px; }
 body.tv .tiles { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }

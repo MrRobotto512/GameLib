@@ -1,7 +1,7 @@
 # Game Shop
 
 A storefront for your own game backups that delivers to a jailbroken PS5 (firmware 13.60) over the
-home network. Consoles are departments, every game is a product with a 3D case, and **Download**
+home network. Consoles are departments, every game is a product with a 3D case (retail box by default, or the cartridge / disc with the *Box / Cart* chip), and **Download**
 copies it to the folder its PS5 emulator reads. See [DESIGN.md](DESIGN.md) for the whole picture.
 
 Built so far (Phases 1 to 3): manual folder → console mapping, FTP copies into RetroArch and other
