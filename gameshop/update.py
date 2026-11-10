@@ -89,22 +89,42 @@ def download(rel: Release, progress: Callable[[int, int], None] | None = None) -
     return target
 
 
+def swap_script(exe: Path, new_exe: Path, pid: int, args: list[str]) -> str:
+    """The cmd script that waits for `pid` to exit, moves new_exe over exe and starts exe again."""
+    quoted = " ".join(f'"{a}"' for a in args)
+    return (
+        "@echo off\r\n"
+        f"set PID={pid}\r\n"
+        ":wait\r\n"
+        'tasklist /FI "PID eq %PID%" 2>NUL | find "%PID%" >NUL\r\n'
+        "if not errorlevel 1 (timeout /t 1 /nobreak >NUL & goto wait)\r\n"
+        # the PyInstaller bootloader (our parent) exits a moment after we do and keeps the exe
+        # locked until then, so retry the move for up to a minute
+        "set TRIES=0\r\n"
+        ":move\r\n"
+        f'move /y "{new_exe}" "{exe}" >NUL 2>&1\r\n'
+        "if not errorlevel 1 goto start\r\n"
+        "set /a TRIES+=1\r\n"
+        "if %TRIES% GEQ 60 goto done\r\n"
+        "timeout /t 1 /nobreak >NUL\r\n"
+        "goto move\r\n"
+        ":start\r\n"
+        f'start "" "{exe}" {quoted}\r\n'
+        ":done\r\n"
+        'del "%~f0"\r\n')
+
+
+def run_detached(cmd: list[str], cwd: Path) -> None:
+    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    subprocess.Popen(cmd, creationflags=flags, close_fds=True, cwd=str(cwd),  # noqa: S603
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def apply_and_restart(new_exe: Path, extra_args: list[str] | None = None) -> None:
     """Spawn the swap script and exit this process. The script waits for our PID to go away,
     moves the new exe over the old one and starts it with the same arguments."""
     exe = Path(sys.executable)
-    args = " ".join(f'"{a}"' for a in (extra_args if extra_args is not None else sys.argv[1:]))
     script = Path(tempfile.gettempdir()) / "gameshop-update.cmd"
-    script.write_text(
-        "@echo off\r\n"
-        f"set PID={os.getpid()}\r\n"
-        ":wait\r\n"
-        'tasklist /FI "PID eq %PID%" 2>NUL | find "%PID%" >NUL\r\n'
-        "if not errorlevel 1 (timeout /t 1 /nobreak >NUL & goto wait)\r\n"
-        f'move /y "{new_exe}" "{exe}" >NUL\r\n'
-        f'start "" "{exe}" {args}\r\n'
-        'del "%~f0"\r\n', encoding="ascii")
-    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    subprocess.Popen(["cmd.exe", "/c", str(script)], creationflags=flags, close_fds=True,  # noqa: S603, S607
-                     cwd=str(exe.parent), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    script.write_text(swap_script(exe, new_exe, os.getpid(), extra_args if extra_args is not None else sys.argv[1:]), encoding="ascii")
+    run_detached(["cmd.exe", "/c", str(script)], cwd=exe.parent)
     threading.Timer(0.5, lambda: os._exit(0)).start()

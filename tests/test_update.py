@@ -19,3 +19,12 @@ def test_release_from_api_picks_exe():
     assert not same.newer and same.asset_url == ""
     assert update.release_from_api({"tag_name": "v9.9.9", "draft": True}) is None
     assert update.release_from_api({"tag_name": "v9.9.9", "prerelease": True}) is None
+
+
+def test_swap_script_waits_moves_and_restarts():
+    from pathlib import Path
+    s = update.swap_script(Path(r"C:\x\GameShop.exe"), Path(r"C:\x\GameShop.exe.new"), 4242, ["--port", "8750"])
+    assert "set PID=4242" in s and ":wait" in s and "goto wait" in s
+    assert 'move /y "C:\\x\\GameShop.exe.new" "C:\\x\\GameShop.exe"' in s
+    assert 'start "" "C:\\x\\GameShop.exe" "--port" "8750"' in s
+    assert s.endswith('del "%~f0"\r\n')
