@@ -265,18 +265,19 @@ h2 .count { color: var(--dim); font-size: 14px; font-weight: 600; }
 .photo img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block; transform: rotateY(-14deg) rotateX(6deg);
   filter: drop-shadow(0 14px 14px rgba(0,0,0,.6)); transition: transform .5s cubic-bezier(.2,.8,.2,1); }
 .dept-card:hover .photo img { transform: rotateY(-4deg) rotateX(2deg) scale(1.04); }
-.dept-card .photo { width: 124px; height: 86px; }
+.dept-card .photo { width: 150px; height: 108px; }
 .dept-head .photo { width: 230px; height: 150px; }
 .dept-card .photo, .dept-head .photo { display: none; }
 .dept-card.hasphoto .photo, .dept-head.hasphoto .photo { display: flex; }
 .dept-card.hasphoto .case, .dept-head.hasphoto .case { display: none; }
 .dept-card.nophoto .photo, .dept-head.nophoto .photo { display: none; }
 .credits { color: var(--muted); font-size: 12px; margin-top: 28px; }
-.maker-group h2 { margin-top: 36px; }
-.dept-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
-.dept-card { display: flex; gap: 16px; align-items: center; padding: 16px 18px; border-radius: 18px; border: 1px solid var(--line);
+/* the Consoles page: one grid, headings across it, cards all the same size and stretched to the edge */
+.dept-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; }
+.dept-cards h2.maker { grid-column: 1 / -1; margin: 28px 0 0; }
+.dept-card { display: flex; gap: 18px; align-items: center; padding: 18px 22px; min-height: 150px; border-radius: 18px; border: 1px solid var(--line);
   background: #171331; background: linear-gradient(135deg, color-mix(in srgb, var(--sys) 30%, #171331), #110e22); }
-.dept-card .n { font-weight: 700; } .dept-card .c { color: var(--muted); font-size: 13px; }
+.dept-card .n { font-weight: 700; font-size: 18px; line-height: 1.2; } .dept-card .c { color: var(--muted); font-size: 13px; margin-top: 4px; }
 .dept-card .case { --scale: .42; }
 .dept-card .case.cart, .dept-card .case.disc, .dept-card .case.floppy { --scale: .5; }
 .dept-card .case.card { --scale: .9; }

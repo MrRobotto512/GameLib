@@ -144,15 +144,18 @@
   pages.departments = function () {
     var groups = {};
     state.app.systems.forEach(function (s) { (groups[s.maker] = groups[s.maker] || []).push(s); });
-    var html = '<h1>Consoles</h1><p class="muted">One department per console. Greyed ones have backups but no PS5 emulator yet.</p>';
+    // one grid for the whole page, the maker headings spanning it, so every card gets the same
+    // tracks and the same size whatever row it is in
+    var html = '<h1>Consoles</h1><p class="muted">One department per console. Greyed ones have backups but no PS5 emulator yet.</p><div class="dept-cards">';
     Object.keys(groups).forEach(function (maker) {
       var list = groups[maker].filter(function (s) { return s.count > 0; });
       if (!list.length) return;
-      html += '<div class="maker-group"><h2>' + esc(maker) + '</h2><div class="dept-cards">' + list.map(function (s) {
+      html += '<h2 class="maker">' + esc(maker) + '</h2>' + list.map(function (s) {
         return '<a class="dept-card' + (s.photo ? '' : ' nophoto') + '" href="#/dept/' + s.id + '" data-nav style="--sys:' + esc(s.color) + '">' + photoHTML(s) + caseHTML({ id: '', system: s.id, title: s.name, case: s.case }) +
           '<div><div class="n">' + esc(s.name) + '</div><div class="c">' + s.count + ' game' + (s.count === 1 ? '' : 's') + (s.route === 'none' ? ' · no PS5 target yet' : s.route === 'ftp' && !s.dest ? ' · set folder' : '') + '</div></div></a>';
-      }).join('') + '</div></div>';
+      }).join('');
     });
+    html += '</div>';
     var credits = {};
     state.app.systems.forEach(function (s) { if (s.photo && s.count > 0 && s.photo_by) { (credits[s.photo_by] = credits[s.photo_by] || []).push(s.name); } });
     var by = Object.keys(credits);
