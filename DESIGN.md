@@ -170,6 +170,13 @@ Discover ─ hero (featured / recently added / "continue downloading") + shelves
   id. ScreenScraper or IGDB with your own API key remain optional. Matching is name-based with
   a normaliser (strip region tags, "The", punctuation) and a manual "pick art" override. Art is
   fetched by the **PC**, cached, served to the PS5 locally.
+- **The machines themselves.** The Consoles page and each shelf header show the real console:
+  one Wikimedia Commons product shot per system named in `systems.toml` (`photo`, mostly Evan
+  Amos's public-domain photos), fetched once by the PC at 900 px via `Special:FilePath`. The
+  white studio backdrop is knocked out on the PC (`photos.py`: a flood fill from the picture's
+  edges, then a crop) so the machine floats on the dark card, tilted like the cases, with a
+  shadow. The 3D case stands in until the photo loads and stays when there is none. Credits are
+  listed at the foot of the Consoles page.
 - **Fallback** when no art is found: a generated cover with the title in large type over a
   gradient taken from the console's brand colours, inside the matching case template, so the
   shelf still looks finished (ProsperoStore does the same with icon colours).

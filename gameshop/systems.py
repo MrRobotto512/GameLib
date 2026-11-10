@@ -22,6 +22,8 @@ class System:
     thumbs: str = ""
     note: str = ""
     core: str = ""
+    photo: str = ""          # Wikimedia Commons file name
+    photo_by: str = ""
 
     def resolve_dest(self, ra_root: str, overrides: dict[str, str] | None = None) -> str:
         """The PS5 folder this system's games go to, after user overrides."""
@@ -57,6 +59,7 @@ def load_systems(path: Path | None = None) -> SystemsTable:
             dest=raw.get("dest", ""), exts=tuple(e.lower() for e in raw.get("exts", [])),
             group=raw.get("group", "file"), case=raw.get("case", "generic"),
             color=raw.get("color", "#888888"), thumbs=raw.get("thumbs", ""), note=raw.get("note", ""), core=raw.get("core", ""),
+            photo=raw.get("photo", ""), photo_by=raw.get("photo_by", ""),
         )
         table.systems[s.id] = s
     return table

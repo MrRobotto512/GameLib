@@ -42,6 +42,15 @@
   }
   function isMedia(el) { return ['cart', 'disc', 'card', 'floppy'].some(function (k) { return el.classList.contains(k); }); }
 
+  // ---------- the machine itself ----------
+  // A photo of the console (fetched by the PC from Wikimedia Commons); the box stands in until
+  // it has loaded, and stays if there is none or it cannot be fetched.
+  function photoHTML(sys) {
+    if (!sys.photo) return '';
+    return '<div class="photo"><img src="/console/' + esc(sys.id) + '?v=' + encodeURIComponent(state.app && state.app.version || '') + '" alt=""' +
+      ' onload="this.parentNode.parentNode.classList.add(\'hasphoto\')" onerror="this.parentNode.parentNode.classList.add(\'nophoto\')"></div>';
+  }
+
   // ---------- 3D case ----------
   // What the printed insert says along its top strip. Box scans already carry it, so the strip
   // is only drawn when the art is a square icon (Switch, package icons) or there is no art.
@@ -140,10 +149,18 @@
       var list = groups[maker].filter(function (s) { return s.count > 0; });
       if (!list.length) return;
       html += '<div class="maker-group"><h2>' + esc(maker) + '</h2><div class="dept-cards">' + list.map(function (s) {
-        return '<a class="dept-card" href="#/dept/' + s.id + '" data-nav style="--sys:' + esc(s.color) + '">' + caseHTML({ id: '', system: s.id, title: s.name, case: s.case }) +
+        return '<a class="dept-card' + (s.photo ? '' : ' nophoto') + '" href="#/dept/' + s.id + '" data-nav style="--sys:' + esc(s.color) + '">' + photoHTML(s) + caseHTML({ id: '', system: s.id, title: s.name, case: s.case }) +
           '<div><div class="n">' + esc(s.name) + '</div><div class="c">' + s.count + ' game' + (s.count === 1 ? '' : 's') + (s.route === 'none' ? ' · no PS5 target yet' : s.route === 'ftp' && !s.dest ? ' · set folder' : '') + '</div></div></a>';
       }).join('') + '</div></div>';
     });
+    var credits = {};
+    state.app.systems.forEach(function (s) { if (s.photo && s.count > 0 && s.photo_by) { (credits[s.photo_by] = credits[s.photo_by] || []).push(s.name); } });
+    var by = Object.keys(credits);
+    if (by.length) {
+      html += '<p class="credits">Console photos from Wikimedia Commons: ' + by.map(function (k) {
+        return esc(k) + (k.indexOf('public domain') < 0 ? ' (' + credits[k].join(', ') + ')' : '');
+      }).join(' · ') + '.</p>';
+    }
     view.innerHTML = html;
   };
 
@@ -153,7 +170,7 @@
     return api('/api/items?system=' + encodeURIComponent(id) + '&status=1' + (q.q ? '&q=' + encodeURIComponent(q.q) : '')).then(function (items) {
       if (sort === 'size') items.sort(function (a, b) { return b.size - a.size; });
       if (sort === 'new') items.sort(function (a, b) { return b.added - a.added; });
-      var html = '<div class="dept-head">' + caseHTML({ id: '', system: id, title: sys.name, case: sys.case }) + '<div><div class="eyebrow">' + esc(sys.maker) + '</div><h1>' + esc(sys.name) + '</h1>' +
+      var html = '<div class="dept-head' + (sys.photo ? '' : ' nophoto') + '">' + photoHTML(sys) + caseHTML({ id: '', system: id, title: sys.name, case: sys.case }) + '<div><div class="eyebrow">' + esc(sys.maker) + '</div><h1>' + esc(sys.name) + '</h1>' +
         '<div class="meta">' + items.length + ' games · ' + (sys.route === 'none' ? 'downloads off' : sys.route === 'dpi' ? 'installs via Direct Package Installer' : sys.dest ? 'downloads go to <b>' + esc(sys.dest) + '</b>' : '<b>no PS5 folder set</b>') + '</div></div></div>';
       if (sys.note) html += '<div class="note">' + esc(sys.note) + '</div>';
       html += '<div class="toolbar"><input id="dept-q" placeholder="Filter this console" value="' + esc(q.q || '') + '" data-nav>' +

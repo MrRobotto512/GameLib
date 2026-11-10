@@ -259,6 +259,19 @@ h2 .count { color: var(--dim); font-size: 14px; font-weight: 600; }
 .pane li .sz { margin-left: auto; color: var(--dim); font-size: 12px; }
 .dept-head { display: flex; align-items: center; gap: 22px; margin-bottom: 10px; }
 .dept-head .case { --scale: .5; }
+/* console photos: the machine cut out of its studio shot, floating at the same angle as the
+   cases with a shadow under it; the case shows until the photo is in */
+.photo { flex: none; display: flex; align-items: center; justify-content: center; perspective: 700px; }
+.photo img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block; transform: rotateY(-14deg) rotateX(6deg);
+  filter: drop-shadow(0 14px 14px rgba(0,0,0,.6)); transition: transform .5s cubic-bezier(.2,.8,.2,1); }
+.dept-card:hover .photo img { transform: rotateY(-4deg) rotateX(2deg) scale(1.04); }
+.dept-card .photo { width: 124px; height: 86px; }
+.dept-head .photo { width: 230px; height: 150px; }
+.dept-card .photo, .dept-head .photo { display: none; }
+.dept-card.hasphoto .photo, .dept-head.hasphoto .photo { display: flex; }
+.dept-card.hasphoto .case, .dept-head.hasphoto .case { display: none; }
+.dept-card.nophoto .photo, .dept-head.nophoto .photo { display: none; }
+.credits { color: var(--muted); font-size: 12px; margin-top: 28px; }
 .maker-group h2 { margin-top: 36px; }
 .dept-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
 .dept-card { display: flex; gap: 16px; align-items: center; padding: 16px 18px; border-radius: 18px; border: 1px solid var(--line);

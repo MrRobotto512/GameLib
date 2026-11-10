@@ -15,6 +15,8 @@
 #   color     brand colour for generated covers and tile tints
 #   thumbs    libretro-thumbnails repository name ("" = none)
 #   core      libretro core name RetroArch's forwarder tiles use ("" = no tiles)
+#   photo     Wikimedia Commons file name of a photo of the machine (fetched by the PC, cached)
+#   photo_by  who took it and its licence, shown as a credit on the Consoles page
 #   note      shown on the department page when route is none or dest is empty
 
 ra_default = "/data/homebrew/PPSA99169"
@@ -31,6 +33,8 @@ exts = ["chd", "cue", "pbp", "m3u", "ecm", "iso", "img"]
 group = "cue"
 case = "jewel"
 color = "#9aa3b2"
+photo = "PSX-Console-wController.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Sony_-_PlayStation"
 
 [[system]]
@@ -44,6 +48,8 @@ exts = ["iso", "chd", "cso", "zso", "cue", "gz"]
 group = "cue"
 case = "dvd"
 color = "#1f47c9"
+photo = "PS2-Fat-Console-Set.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Sony_-_PlayStation_2"
 
 [[system]]
@@ -57,6 +63,8 @@ exts = ["iso", "cso", "chd", "pbp"]
 group = "file"
 case = "umd"
 color = "#2b2f3a"
+photo = "Sony-PSP-1000-Body.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Sony_-_PlayStation_Portable"
 
 [[system]]
@@ -69,6 +77,8 @@ exts = ["iso", "pkg"]
 group = "folder"
 case = "bd"
 color = "#0a0a0a"
+photo = "Sony-PlayStation-3-CECHA01-wController-L.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Sony_-_PlayStation_3"
 note = "No dependable PS3 emulator on the PS5 yet. The library lists these so nothing is lost; downloads are off."
 
@@ -82,6 +92,8 @@ exts = ["pkg"]
 group = "file"
 case = "bd"
 color = "#1e5bd8"
+photo = "PS4-Console-wDS4.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = ""
 note = "PS4 packages install natively through etaHEN's Direct Package Installer. kstuff must be running."
 
@@ -95,6 +107,8 @@ exts = ["exfat", "ffpkg", "ffpfs", "ffpfsc"]
 group = "file"
 case = "bd"
 color = "#f2f2f2"
+photo = "PlayStation 5 and DualSense with transparent background.png"
+photo_by = "Soberian, CC BY-SA 4.0"
 thumbs = ""
 note = "Game images that ShadowMount+ mounts from /data/homebrew."
 
@@ -110,6 +124,8 @@ exts = ["nes", "fds", "unf", "unif", "zip", "7z"]
 group = "file"
 case = "cart-nes"
 color = "#8c8c8c"
+photo = "NES-Console-Set.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Nintendo_-_Nintendo_Entertainment_System"
 
 [[system]]
@@ -123,6 +139,8 @@ exts = ["sfc", "smc", "fig", "swc", "zip", "7z"]
 group = "file"
 case = "cart-snes"
 color = "#6f6fbf"
+photo = "SNES-Mod1-Console-Set.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Nintendo_-_Super_Nintendo_Entertainment_System"
 
 [[system]]
@@ -136,6 +154,8 @@ exts = ["z64", "n64", "v64", "zip", "7z"]
 group = "file"
 case = "cart-n64"
 color = "#2c9a3e"
+photo = "N64-Console-Set.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Nintendo_-_Nintendo_64"
 
 [[system]]
@@ -149,6 +169,8 @@ exts = ["gb", "zip", "7z"]
 group = "file"
 case = "cart-gb"
 color = "#9bbc0f"
+photo = "Game-Boy-FL.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Nintendo_-_Game_Boy"
 
 [[system]]
@@ -162,6 +184,8 @@ exts = ["gbc", "zip", "7z"]
 group = "file"
 case = "cart-gb"
 color = "#7b3fd3"
+photo = "Game-Boy-Color-Purple.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Nintendo_-_Game_Boy_Color"
 
 [[system]]
@@ -175,6 +199,8 @@ exts = ["gba", "zip", "7z"]
 group = "file"
 case = "cart-gb"
 color = "#4a3fb5"
+photo = "Nintendo-Game-Boy-Advance-Purple-FL.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Nintendo_-_Game_Boy_Advance"
 
 [[system]]
@@ -188,6 +214,8 @@ exts = ["nds", "zip", "7z"]
 group = "file"
 case = "cart-ds"
 color = "#c9c9c9"
+photo = "Nintendo-DS-Fat-Blue.png"
+photo_by = "Evan Amos, public domain"
 thumbs = "Nintendo_-_Nintendo_DS"
 
 [[system]]
@@ -201,6 +229,8 @@ exts = ["3ds", "cci", "cia", "cxi"]
 group = "file"
 case = "cart-ds"
 color = "#d12c2c"
+photo = "Nintendo-3DS-AquaOpen.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Nintendo_-_Nintendo_3DS"
 
 [[system]]
@@ -214,6 +244,8 @@ exts = ["iso", "rvz", "gcz", "ciso", "gcm"]
 group = "file"
 case = "mini-dvd"
 color = "#5c3fa6"
+photo = "GameCube-Set.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Nintendo_-_GameCube"
 
 [[system]]
@@ -227,6 +259,8 @@ exts = ["iso", "rvz", "wbfs", "wad"]
 group = "file"
 case = "dvd"
 color = "#efefef"
+photo = "Wii-Console.png"
+photo_by = "Evan Amos, public domain"
 thumbs = "Nintendo_-_Wii"
 
 [[system]]
@@ -239,6 +273,8 @@ exts = ["nsp", "xci", "nsz", "xcz"]
 group = "file"
 case = "switch"
 color = "#e60012"
+photo = "Nintendo-Switch-Console-Docked-wJoyConRB.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = ""
 note = "Plays in ProsperoEden (alpha, slow). Set its games folder under Settings → Destinations."
 
@@ -254,6 +290,8 @@ exts = ["md", "gen", "smd", "bin", "zip", "7z"]
 group = "file"
 case = "cart-genesis"
 color = "#111111"
+photo = "Sega-Genesis-Mod1-Set.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Sega_-_Mega_Drive_-_Genesis"
 
 [[system]]
@@ -267,6 +305,8 @@ exts = ["sms", "zip", "7z"]
 group = "file"
 case = "cart-sms"
 color = "#c41e1e"
+photo = "Sega-Master-System-Set.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Sega_-_Master_System_-_Mark_III"
 
 [[system]]
@@ -280,6 +320,8 @@ exts = ["gg", "zip", "7z"]
 group = "file"
 case = "cart-sms"
 color = "#1a1a1a"
+photo = "Game-Gear-Handheld.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Sega_-_Game_Gear"
 
 [[system]]
@@ -293,6 +335,8 @@ exts = ["chd", "cue", "iso"]
 group = "cue"
 case = "jewel"
 color = "#2a2a2a"
+photo = "Sega-CD-Model1-Set.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Sega_-_Mega-CD_-_Sega_CD"
 
 [[system]]
@@ -306,6 +350,8 @@ exts = ["32x", "zip", "7z"]
 group = "file"
 case = "cart-genesis"
 color = "#222222"
+photo = "Sega-Genesis-Model2-32X.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Sega_-_32X"
 
 [[system]]
@@ -319,6 +365,8 @@ exts = ["chd", "cue", "m3u"]
 group = "cue"
 case = "jewel"
 color = "#3b3b3b"
+photo = "Sega-Saturn-Console-Set-Mk1.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Sega_-_Saturn"
 
 [[system]]
@@ -332,6 +380,8 @@ exts = ["chd", "gdi", "cdi", "cue"]
 group = "cue"
 case = "jewel"
 color = "#f0f0f0"
+photo = "Dreamcast-Console-Set.jpg"
+photo_by = "Evan Amos, CC BY-SA 3.0"
 thumbs = "Sega_-_Dreamcast"
 
 # ---------------- Microsoft ----------------
@@ -345,6 +395,8 @@ exts = ["iso", "xiso"]
 group = "file"
 case = "dvd"
 color = "#107c10"
+photo = "Xbox-console.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Microsoft_-_Xbox"
 note = "Plays in XPSemu. Set its games folder under Settings → Destinations."
 
@@ -358,6 +410,8 @@ exts = ["iso", "xex", "god"]
 group = "folder"
 case = "dvd"
 color = "#5dc21e"
+photo = "Xbox-360-Pro-wController.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Microsoft_-_Xbox_360"
 note = "Xbox 360 emulation on PS5 is a demo without a public build. Listed, downloads off."
 
@@ -373,6 +427,8 @@ exts = ["zip", "7z"]
 group = "file"
 case = "arcade"
 color = "#ff6a00"
+photo = "Borne arcade Pacman.png"
+photo_by = "Fan de Rétro, CC BY 4.0"
 thumbs = "FBNeo_-_Arcade_Games"
 
 [[system]]
@@ -386,6 +442,8 @@ exts = ["zip", "7z"]
 group = "file"
 case = "arcade"
 color = "#d4a017"
+photo = "Neo-Geo-AES-Console-Set.jpg"
+photo_by = "Evan Amos, CC BY-SA 3.0"
 thumbs = "SNK_-_Neo_Geo"
 
 [[system]]
@@ -399,6 +457,8 @@ exts = ["pce", "sgx", "chd", "cue", "zip"]
 group = "cue"
 case = "cart-sms"
 color = "#f26522"
+photo = "PC-Engine-Console-Set.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "NEC_-_PC_Engine_-_TurboGrafx_16"
 
 [[system]]
@@ -412,6 +472,8 @@ exts = ["a26", "bin", "zip"]
 group = "file"
 case = "cart-2600"
 color = "#6b3e1e"
+photo = "Atari-2600-Wood-4Sw-Set.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Atari_-_2600"
 
 [[system]]
@@ -425,6 +487,8 @@ exts = ["a78", "zip"]
 group = "file"
 case = "cart-2600"
 color = "#3a3a3a"
+photo = "Atari-7800-Console-Set.jpg"
+photo_by = "Evan Amos, CC BY-SA 3.0"
 thumbs = "Atari_-_7800"
 
 [[system]]
@@ -438,6 +502,8 @@ exts = ["lnx", "zip"]
 group = "file"
 case = "cart-lynx"
 color = "#e8a000"
+photo = "Atari-Lynx-I-Handheld.jpg"
+photo_by = "Evan Amos, CC BY-SA 3.0"
 thumbs = "Atari_-_Lynx"
 
 [[system]]
@@ -451,6 +517,8 @@ exts = ["j64", "jag", "zip"]
 group = "file"
 case = "cart-genesis"
 color = "#b01010"
+photo = "Atari-Jaguar-Console-Set.jpg"
+photo_by = "Evan Amos, CC BY-SA 3.0"
 thumbs = "Atari_-_Jaguar"
 
 [[system]]
@@ -464,6 +532,8 @@ exts = ["d64", "t64", "prg", "crt", "g64", "zip"]
 group = "file"
 case = "generic"
 color = "#7a7a9a"
+photo = "Commodore-64-Computer-FL.jpg"
+photo_by = "Evan Amos, public domain"
 thumbs = "Commodore_-_64"
 
 [[system]]
@@ -477,6 +547,8 @@ exts = ["adf", "hdf", "lha", "ipf", "zip"]
 group = "file"
 case = "generic"
 color = "#3c74c4"
+photo = "Amiga500 system.jpg"
+photo_by = "Bill Bertram, CC BY-SA 2.5"
 thumbs = "Commodore_-_Amiga"
 
 [[system]]
@@ -490,6 +562,8 @@ exts = []
 group = "folder"
 case = "generic"
 color = "#2d2d2d"
+photo = "IBM PC 5150.jpg"
+photo_by = "Wikimedia Commons, CC BY-SA 3.0"
 thumbs = "DOS"
 
 [[system]]
@@ -503,4 +577,6 @@ exts = []
 group = "folder"
 case = "generic"
 color = "#c86400"
+photo = "Scummvm logo.svg"
+photo_by = "ScummVM project logo, GPL"
 thumbs = "ScummVM"

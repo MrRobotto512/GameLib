@@ -16,6 +16,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Iterator
 
+import anyio
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -30,6 +31,7 @@ from .metadata import MetadataStore
 from .switchdb import SwitchTitleDB
 from .gametdb import GameTDB, SYSTEMS as GAMETDB_SYSTEMS, accept as gametdb_accept
 from .covers import patch_site_icon_urls, serial_cover_urls
+from .photos import ConsolePhotos
 from .paths import resource_dir
 from .peers import PeerDirectory
 from .ps5 import PS5Client, Health, RA_PORT, scan_subnet
@@ -56,6 +58,7 @@ class Agent:
         self.metadata = MetadataStore(self.db, self.systems, self.data_dir / "rdb", enabled=lambda: self.store.config.art_enabled)
         self.switchdb = SwitchTitleDB(self.data_dir / "titledb", enabled=lambda: self.store.config.art_enabled,
                                       on_ready=self._switch_ready)
+        self.photos = ConsolePhotos(self.data_dir / "art", enabled=lambda: self.store.config.art_enabled)
         self.gametdb = GameTDB(self.data_dir / "gametdb", enabled=lambda: self.store.config.art_enabled,
                                hint=self._gametdb_names)
         # Switch: the retail front from GameTDB first, the eShop icon only when it has none
@@ -379,6 +382,11 @@ class Agent:
             raise HTTPException(502, f"RetroArch's WebUI did not answer: {e}")
 
 
+# Art is fetched from the internet on demand, one request per cover. Those requests get a small
+# pool of their own, so a shelf full of first-time covers never queues the API behind them.
+ART_LIMITER = anyio.CapacityLimiter(8)
+
+
 def health_dict(h: Health) -> dict[str, Any]:
     return {**h.__dict__, "online": h.online}
 
@@ -438,6 +446,7 @@ def create_app(agent: Agent | None = None) -> FastAPI:
                 "id": s.id, "name": s.name, "maker": s.maker, "route": s.route, "case": s.case, "color": s.color,
                 "note": s.note, "dest": agent.dest_for(s.id), "default_dest": s.resolve_dest(agent.config.ra_root),
                 "count": counts.get(s.id, 0), "exts": list(s.exts), "core": s.core,
+                "photo": bool(s.photo), "photo_by": s.photo_by,
             })
         h = agent.health(refresh=bool(refresh))
         return {
@@ -508,18 +517,31 @@ def create_app(agent: Agent | None = None) -> FastAPI:
             raise HTTPException(404)
         return agent.retroarch_forwarder(it)
 
+    @app.get("/console/{system_id}")
+    async def console_photo(system_id: str):
+        sys_ = agent.systems.get(system_id)
+        if not sys_ or not sys_.photo:
+            raise HTTPException(404)
+        p = await anyio.to_thread.run_sync(agent.photos.get, sys_, limiter=ART_LIMITER)
+        if not p:
+            raise HTTPException(404)
+        return FileResponse(p, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
+
     @app.get("/art/{item_id}")
-    def art(item_id: str, kind: str = "box"):
+    async def art(item_id: str, kind: str = "box"):
         peer_key, local = agent.split_id(item_id)
         if peer_key:
             peer = agent.peers.get(peer_key)
             if not peer:
                 raise HTTPException(404)
-            return _proxy_stream(f"{peer.url}/art/{local}?kind={kind}", None)
+            return await anyio.to_thread.run_sync(_proxy_stream, f"{peer.url}/art/{local}?kind={kind}", None, limiter=ART_LIMITER)
         it = agent.db.item(local)
         if not it:
             raise HTTPException(404)
-        p = agent.art.get(it, kind=kind if kind in ArtCache.KINDS else "box")
+        kind = kind if kind in ArtCache.KINDS else "box"
+        p = agent.art.get(it, fetch=False, kind=kind)                      # cached: answer at once
+        if not p:
+            p = await anyio.to_thread.run_sync(lambda: agent.art.get(it, kind=kind), limiter=ART_LIMITER)
         if not p:
             raise HTTPException(404)
         with open(p, "rb") as f:
