@@ -160,9 +160,16 @@ Discover ─ hero (featured / recently added / "continue downloading") + shelves
   has no libretro set, so its icons, banners, screenshots and facts come from the community
   **titledb** (blawar/titledb, one 90 MB JSON compacted and cached by the PC), matched by the
   16-digit title ID in the dump's name; update (`…800`) and DLC IDs map back to the base game, and
-  dumps without an ID match by name. ScreenScraper or IGDB with your own API key remain optional. Matching is name-based with a
-  normaliser (strip region tags, "The", punctuation) and a manual "pick art" override. Art is
-  fetched by the **PC**, cached as WebP, served to the PS5 locally.
+  dumps without an ID match by name. Switch **boxes** are the retail fronts from **GameTDB**
+  (gametdb.com, the cover database behind USB loaders), matched by name from its free title
+  list; the eShop icon is only the fallback. GameTDB also backs up libretro for DS, 3DS, Wii,
+  GameCube and PS3 (by the game code or serial in the dump's name, else by name). PS1 and PS2
+  dumps with a disc serial (`SLUS-20312`) fall back to xlenore's cover repositories on GitHub,
+  the ones DuckStation and PCSX2 download from. PS4 / PS5 have no public retail-cover source,
+  so their fallback is the package icon from orbispatches.com / prosperopatches.com by title
+  id. ScreenScraper or IGDB with your own API key remain optional. Matching is name-based with
+  a normaliser (strip region tags, "The", punctuation) and a manual "pick art" override. Art is
+  fetched by the **PC**, cached, served to the PS5 locally.
 - **Fallback** when no art is found: a generated cover with the title in large type over a
   gradient taken from the console's brand colours, inside the matching case template, so the
   shelf still looks finished (ProsperoStore does the same with icon colours).

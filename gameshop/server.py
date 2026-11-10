@@ -28,6 +28,8 @@ from .grouping import fold, group_key, part_of, strip_game
 from .indexer import Indexer, scan_all
 from .metadata import MetadataStore
 from .switchdb import SwitchTitleDB
+from .gametdb import GameTDB, SYSTEMS as GAMETDB_SYSTEMS
+from .covers import patch_site_icon_urls, serial_cover_urls
 from .paths import resource_dir
 from .peers import PeerDirectory
 from .ps5 import PS5Client, Health, RA_PORT, scan_subnet
@@ -54,10 +56,19 @@ class Agent:
         self.metadata = MetadataStore(self.db, self.systems, self.data_dir / "rdb", enabled=lambda: self.store.config.art_enabled)
         self.switchdb = SwitchTitleDB(self.data_dir / "titledb", enabled=lambda: self.store.config.art_enabled,
                                       on_ready=self._switch_ready)
+        self.gametdb = GameTDB(self.data_dir / "gametdb", enabled=lambda: self.store.config.art_enabled,
+                               hint=self._gametdb_names)
+        # Switch: the retail front from GameTDB first, the eShop icon only when it has none
+        self.art.providers.append(lambda it, kind: self.gametdb.urls(it, kind) if it["system"] == "switch" else None)
         self.art.providers.append(lambda it, kind: self.switchdb.art_url(it, kind) if it["system"] == "switch" else None)
+        # after libretro misses: GameTDB for its other consoles, serial-keyed PS1 / PS2 covers, PS4 / PS5 icons
+        self.art.fallbacks.append(lambda it, kind: self.gametdb.urls(it, kind) if it["system"] in GAMETDB_SYSTEMS and it["system"] != "switch" else None)
+        self.art.fallbacks.append(serial_cover_urls)
+        self.art.fallbacks.append(patch_site_icon_urls)
         self.metadata.providers.append(lambda it: self.switchdb.facts(it) if it["system"] == "switch" else None)
         self.art.name_hint = self.metadata.thumb_names
         self._forget_misses_once()                     # matching improved: retry everything once per version
+        self._refetch_once("switch", "gametdb-1")      # Switch boxes used to be eShop icons
         self.worker = TransferWorker(self.db, lambda: self.client(), self.file_url,
                                      skip_existing=lambda: self.store.config.skip_existing, after_ftp=self._after_ftp)
         self.peers = PeerDirectory(self.config.agent_id, self.config.name, lambda: self.config.port,
@@ -108,6 +119,26 @@ class Agent:
             return
         self.db.execute("DELETE FROM art WHERE status='missing'")
         self.db.execute("DELETE FROM metadata WHERE status='missing'")
+        marker.write_text("")
+
+    def _gametdb_names(self, item: dict[str, Any]) -> list[str]:
+        """The eShop name of a Switch game (from titledb) is closer to GameTDB's than the file's."""
+        if item.get("system") != "switch":
+            return []
+        try:
+            found = self.switchdb.record(item)
+        except Exception:   # noqa: BLE001
+            return []
+        return [found[0]["name"]] if found and found[0].get("name") else []
+
+    def _refetch_once(self, system_id: str, tag: str) -> None:
+        """Drop one system's cached box art once, so a better source gets its turn."""
+        marker = self.data_dir / f".art-refetched-{system_id}-{tag}"
+        if marker.exists():
+            return
+        for r in self.db.items(system=system_id):
+            self.art.path_for(r["id"]).unlink(missing_ok=True)
+            self.db.execute("DELETE FROM art WHERE item_id=?", (r["id"],))
         marker.write_text("")
 
     def _forget_misses(self, system_id: str) -> None:

@@ -2,6 +2,9 @@
 
 https://raw.githubusercontent.com/libretro-thumbnails/<System_Repo>/master/Named_Boxarts/<Name>.png
 where <Name> is the No-Intro / Redump name with  &*/:`<>?\\|"  replaced by '_'.
+
+Other sources plug in as providers (asked before libretro) and fallbacks (asked after a real
+miss): GameTDB for the consoles libretro lacks, serial-keyed PS1 / PS2 covers, package icons.
 """
 from __future__ import annotations
 
@@ -62,8 +65,10 @@ class ArtCache:
         self.enabled = enabled
         self._inflight: set[str] = set()
         self._lock = threading.Lock()
-        # (item, kind) -> image URL | None; may raise switchdb.NotReady. Tried before libretro.
-        self.providers: list[Callable[[dict[str, Any], str], str | None]] = []
+        # (item, kind) -> image URL, a list of URLs to try in order, or None; may raise
+        # switchdb.NotReady. Providers are asked before libretro, fallbacks after it missed.
+        self.providers: list[Callable[[dict[str, Any], str], str | list[str] | None]] = []
+        self.fallbacks: list[Callable[[dict[str, Any], str], str | list[str] | None]] = []
         # item -> extra names to try on libretro-thumbnails (the database's own name for the game)
         self.name_hint: Callable[[dict[str, Any]], list[str]] | None = None
 
@@ -88,7 +93,7 @@ class ArtCache:
     def fetch(self, item: dict[str, Any], kind: str = "box") -> Path | None:
         key = item["id"] if kind == "box" else f"{item['id']}:{kind}"
         system = self.systems.get(item["system"])
-        if not system or kind not in self.KINDS or (not system.thumbs and not self.providers):
+        if not system or kind not in self.KINDS or (not system.thumbs and not self.providers and not self.fallbacks):
             self.db.set_art(key, "missing")
             return None
         with self._lock:
@@ -96,42 +101,57 @@ class ArtCache:
                 return None
             self._inflight.add(key)
         try:
-            for provider in self.providers:
-                try:
-                    url = provider(item, kind)
-                except NotReady:
-                    return None                      # try again later, record nothing
-                if url:
-                    data = _get(url, timeout=20)
-                    if data:
-                        p = self.path_for(item["id"], kind)
-                        p.write_bytes(data)
-                        self.db.set_art(key, "ok", str(p))
-                        return p
-            if not system.thumbs:
-                self.db.set_art(key, "missing")
-                return None
-            names = candidates(item)
-            if self.name_hint:
-                names += [n for n in self.name_hint(item) if n not in names]
             unsure = False
-            for name in names:
-                url = BASE.format(repo=system.thumbs, kind=self.KINDS[kind],
-                                  name=urllib.parse.quote(libretro_thumb_name(name)))
-                status, data = _get_status(url)
-                if data:
-                    p = self.path_for(item["id"], kind)
-                    p.write_bytes(data)
-                    self.db.set_art(key, "ok", str(p))
-                    return p
-                if status != 404:
-                    unsure = True                    # throttled, offline, timeout: not a real miss
+            found = self._from(self.providers, item, kind)
+            if found is None:
+                return None                          # a source is still loading: try again later
+            if found:
+                return self._store(item, key, kind, found)
+            if system.thumbs:
+                names = candidates(item)
+                if self.name_hint:
+                    names += [n for n in self.name_hint(item) if n not in names]
+                for name in names:
+                    url = BASE.format(repo=system.thumbs, kind=self.KINDS[kind],
+                                      name=urllib.parse.quote(libretro_thumb_name(name)))
+                    status, data = _get_status(url)
+                    if data:
+                        return self._store(item, key, kind, data)
+                    if status != 404:
+                        unsure = True                # throttled, offline, timeout: not a real miss
+            found = self._from(self.fallbacks, item, kind)
+            if found is None:
+                return None
+            if found:
+                return self._store(item, key, kind, found)
             if not unsure:
                 self.db.set_art(key, "missing")
             return None
         finally:
             with self._lock:
                 self._inflight.discard(key)
+
+    def _from(self, sources, item: dict[str, Any], kind: str) -> bytes | None | bool:
+        """Image bytes from the first source that has one; False when none has, None when a
+        source is still loading its index (nothing is recorded then)."""
+        for source in sources:
+            try:
+                urls = source(item, kind)
+            except NotReady:
+                return None
+            if isinstance(urls, str):
+                urls = [urls]
+            for url in urls or []:
+                data = _get(url, timeout=20)
+                if data:
+                    return data
+        return False
+
+    def _store(self, item: dict[str, Any], key: str, kind: str, data: bytes) -> Path:
+        p = self.path_for(item["id"], kind)
+        p.write_bytes(_as_png(data))
+        self.db.set_art(key, "ok", str(p))
+        return p
 
     def prefetch(self, items: Iterable[dict[str, Any]], workers: int = 4) -> None:
         """Background: warm the cache for a list of items."""
@@ -142,6 +162,20 @@ class ArtCache:
             with cf.ThreadPoolExecutor(max_workers=workers) as ex:
                 list(ex.map(lambda it: self.get(it), todo))
         threading.Thread(target=run, name="gameshop-art", daemon=True).start()
+
+
+def _as_png(data: bytes) -> bytes:
+    """WebP (the patch sites' icons) -> PNG so every cached file is a browser-safe image."""
+    if data[:4] != b"RIFF":
+        return data
+    try:
+        import io
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.open(io.BytesIO(data)).convert("RGBA").save(buf, "PNG")
+        return buf.getvalue()
+    except Exception:   # noqa: BLE001
+        return data
 
 
 def _get_status(url: str, timeout: float = 8.0) -> tuple[int, bytes | None]:

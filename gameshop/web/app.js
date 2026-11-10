@@ -65,7 +65,7 @@
     var cls = 'case ' + c + (isCart(c) ? ' cart' : '') + (opts.spin ? ' spin' : '') + (item.art ? '' : ' noart');
     var band = kind === 'bd' || kind === 'dvd' || kind === 'mini-dvd' || kind === 'umd' || kind === 'switch';
     var gen = '<div class="gen">' + (band ? '' : '<div class="g-sys">' + esc(sys.name) + '</div>') + '<div class="g-title">' + esc(item.title) + '</div></div>';
-    var src = '/art/' + item.id;
+    var src = '/art/' + item.id + '?v=' + encodeURIComponent(state.app && state.app.version || '');   // a new release may bring better art
     var img = item.art ? '<img src="' + src + '" alt="" onload="artLoaded(this)" onerror="this.closest(\'.case\').classList.add(\'noart\');this.parentNode.innerHTML=this.nextSibling.innerHTML" loading="lazy"><template>' + gen + '</template>' : gen;
     var front = labeled ? '<div class="label">' + img + '</div>' :
       '<div class="ins">' + (item.art ? '<img class="bg" src="' + src + '" alt="" aria-hidden="true" loading="lazy">' : '') + img + '</div>' +
