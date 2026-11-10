@@ -66,15 +66,24 @@
     var m = { onps5: 'On your PS5', running: 'Copying', queued: 'Queued', verifying: 'Checking', unsupported: 'No PS5 target', failed: 'Failed', nodest: 'Set folder', sent: 'Sent' };
     return m[st.state] || '';
   }
+  function extrasLabel(item) {
+    var ex = (item.extras || []).slice();
+    var orphan = item.part && item.part !== 'base';
+    if (orphan) ex.push({ part: item.part });            // the item itself is an add-on without its game
+    if (!ex.length) return '';
+    var u = ex.filter(function (x) { return x.part === 'update'; }).length, d = ex.length - u;
+    return [u ? 'Update' : '', d ? d + ' DLC' : ''].filter(Boolean).join(', ') + (orphan ? ' · no game' : '');
+  }
+  function partName(p) { return p === 'update' ? 'Update' : p === 'dlc' ? 'DLC' : ''; }
   function tileHTML(item) {
     var sys = sysOf(item.system);
-    var st = item.status, lab = stateLabel(st);
+    var st = item.status, lab = stateLabel(st), ex = extrasLabel(item);
     return '<a class="tile" href="#/game/' + item.id + '" data-nav style="--sys:' + esc(sys.color) + '">' +
       (lab ? '<span class="state ' + esc(st.state) + '">' + lab + '</span>' : '') +
       (item.peer ? '<span class="peer-badge" title="On another PC">' + esc(item.peer_name) + '</span>' : '') +
       '<div class="art-wrap">' + caseHTML(item) + '</div>' +
       '<div class="t-title">' + esc(item.title) + '</div>' +
-      '<div class="t-sub"><span>' + esc(sys.name) + '</span>' + (item.facts && item.facts.year ? '<span>· ' + esc(item.facts.year) + '</span>' : item.region ? '<span>· ' + esc(item.region) + '</span>' : '') + '<span>· ' + fmtSize(item.size) + '</span></div></a>';
+      '<div class="t-sub"><span>' + esc(sys.name) + '</span>' + (item.facts && item.facts.year ? '<span>· ' + esc(item.facts.year) + '</span>' : item.region ? '<span>· ' + esc(item.region) + '</span>' : '') + '<span>· ' + fmtSize(item.size) + '</span>' + (ex ? '<span class="extras">· ' + esc(ex) + '</span>' : '') + '</div></a>';
   }
   function shelfHTML(items) { return '<div class="shelf">' + items.map(tileHTML).join('') + '</div>'; }
   function scaleTiles(root) { $$('.tile .case', root).forEach(function (c) { c.style.setProperty('--scale', c.classList.contains('card') ? '1.6' : isMedia(c) ? '0.95' : '0.85'); }); }
@@ -156,6 +165,8 @@
         (facts.description ? '<p class="desc">' + esc(facts.description) + '</p>' : '') +
         '<div class="chips">' + chips.map(function (c) { return '<span class="pill">' + esc(c) + '</span>'; }).join('') + '</div>' +
         (it.system_note ? '<div class="note">' + esc(it.system_note) + '</div>' : '') +
+        (it.base ? '<div class="note">This is ' + (it.part === 'update' ? 'an update' : 'DLC') + ' for <a href="#/game/' + it.base.id + '" data-nav><b>' + esc(it.base.title) + '</b></a>, which is also in your library.</div>' : it.part && it.part !== 'base' ? '<div class="note">This is ' + (it.part === 'update' ? 'an update' : 'DLC') + ' and the game itself is not in your library' + (it.extras && it.extras.length ? '; its other add-ons are listed below' : '') + '.</div>' : '') +
+        extrasHTML(it) +
         '<dl class="facts">' + (facts.year ? '<dt>Released</dt><dd>' + esc(facts.year) + (facts.month ? '-' + ('0' + facts.month).slice(-2) : '') + '</dd>' : '') + (facts.developer ? '<dt>Developer</dt><dd>' + esc(facts.developer) + '</dd>' : '') + (facts.publisher ? '<dt>Publisher</dt><dd>' + esc(facts.publisher) + '</dd>' : '') + (facts.franchise ? '<dt>Series</dt><dd>' + esc(facts.franchise) + '</dd>' : '') + (facts.part && facts.game ? '<dt>Game</dt><dd>' + esc(facts.game) + '</dd>' : '') + (facts.serial ? '<dt>Serial</dt><dd>' + esc(facts.serial) + '</dd>' : '') +
         '<dt>Files</dt><dd>' + files + '</dd><dt>' + (it.peer ? 'On the PC' : 'On this PC') + '</dt><dd>' + (it.peer ? '<b>' + esc(it.peer_name) + '</b> · ' : '') + esc(it.source) + '</dd>' +
         (it.also_on && it.also_on.length ? '<dt>Also on</dt><dd>' + esc(it.also_on.join(', ')) + '</dd>' : '') + '<dt>Primary file</dt><dd>' + esc(it.rel) + '</dd>' +
@@ -177,6 +188,18 @@
     });
   };
 
+  function extrasHTML(it) {
+    var ex = it.extras || [];
+    if (!ex.length) return '';
+    var total = ex.reduce(function (a, x) { return a + x.size; }, 0);
+    return '<div class="extras-box"><h2>Updates and DLC <span class="count">' + ex.length + ' · ' + fmtSize(total) + '</span></h2>' +
+      ex.map(function (x) {
+        var lab = stateLabel(x.status), on = x.status && x.status.state === 'onps5', busy = x.status && (x.status.state === 'running' || x.status.state === 'queued' || x.status.state === 'verifying');
+        return '<div class="row"><span class="pill ' + x.part + '">' + partName(x.part) + (x.version && x.part === 'update' ? ' ' + esc(x.version) : '') + '</span><div class="grow"><div class="title">' + esc(x.title || (x.part === 'update' ? 'Update for ' + it.title : 'Add-on')) + '</div>' +
+          '<div class="sub">' + fmtSize(x.size) + ' · ' + esc(x.rel.split('/').pop()) + (x.peer ? ' · on another PC' : '') + (lab ? ' · <b class="state ' + esc(x.status.state) + '">' + lab + '</b>' : '') + '</div></div>' +
+          '<button class="btn small" data-dlx="' + x.id + '" data-nav' + (busy ? ' disabled' : '') + '>' + (on ? 'Copy again' : busy ? 'Copying' : 'Download') + '</button></div>';
+      }).join('') + '</div>';
+  }
   function renderGet(it, st) {
     var box = $('#get'); if (!box) return;
     var sys = sysOf(it.system);
@@ -198,17 +221,21 @@
       (offline ? '<div class="dest-line bad">PS5 is offline. Check Settings.</div>' : '') +
       (it.route === 'ftp' && btn && dests.length ? '<select id="dl-to" data-nav><option value="">Download to… (another folder)</option>' + dests.map(function (d) { return '<option value="' + esc(d.dest) + '">' + esc(d.name) + ' — ' + esc(d.dest) + '</option>'; }).join('') + '</select>' : '') +
       (it.dest ? '<div class="dest-line">→ ' + esc(it.dest) + '</div>' : '') +
+      (it.extras && it.extras.length && btn && !offline && it.route === 'ftp' ? '<button class="btn small" id="dl-all" data-nav style="margin-top:10px">⤓ &nbsp;Game + ' + it.extras.length + ' add-on' + (it.extras.length === 1 ? '' : 's') + '</button>' : '') +
       (s === 'running' || s === 'queued' ? '<button class="btn small danger" id="cancel" data-nav style="margin-top:10px">Cancel</button>' : '');
     var dl = $('#dl');
     if (dl) dl.addEventListener('click', function () { startDownload(it.id); });
+    var all = $('#dl-all');
+    if (all) all.addEventListener('click', function () { all.disabled = true; startDownload(it.id); (it.extras || []).forEach(function (x) { startDownload(x.id, null, true); }); });
+    $$('[data-dlx]').forEach(function (b) { b.addEventListener('click', function () { b.disabled = true; startDownload(b.getAttribute('data-dlx')); }); });
     var sel = $('#dl-to');
     if (sel) sel.addEventListener('change', function () { if (this.value) startDownload(it.id, this.value); });
     var cancel = $('#cancel');
     if (cancel) cancel.addEventListener('click', function () { api('/api/jobs/' + st.job + '/cancel', { method: 'POST' }).then(function () { toast('Cancelled'); }); });
   }
-  function startDownload(id, dest) {
+  function startDownload(id, dest, quiet) {
     api('/api/items/' + id + '/download', { method: 'POST', body: dest ? { dest: dest } : {} }).then(function (job) {
-      toast(job.route === 'dpi' ? 'Asked the PS5 to install it' : 'Added to Downloads');
+      if (!quiet) toast(job.route === 'dpi' ? 'Asked the PS5 to install it' : 'Added to Downloads');
       refreshJobs();
     }).catch(function (e) { toast(e.message); });
   }

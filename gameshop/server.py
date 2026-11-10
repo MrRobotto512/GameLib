@@ -24,6 +24,7 @@ from . import __version__
 from .art import ArtCache
 from .config import ConfigStore, Source
 from .db import Database
+from .grouping import fold, group_key, part_of, strip_game
 from .indexer import Indexer, scan_all
 from .metadata import MetadataStore
 from .switchdb import SwitchTitleDB
@@ -183,7 +184,34 @@ class Agent:
             seen.add(key)
             items.append(self._remote(peer, it))
         items.sort(key=lambda i: i["sort_title"])
+        items = fold(items)                              # updates / DLC ride on their game
         return items[:limit] if limit else items
+
+    def related(self, it: dict[str, Any]) -> dict[str, Any]:
+        """For a product page: the game's add-ons with their status, or the game an add-on belongs to."""
+        out: dict[str, Any] = {"part": part_of(it)}
+        key = group_key(it)
+        grouped = [g for g in self.merged_items(it["system"]) if group_key(g) == key]
+        mine = next((g for g in grouped if g["id"] == it["id"]), None)
+        if out["part"] == "base" or (mine and mine.get("extras")):     # a game, or an update standing in for one
+            extras = list((mine or {}).get("extras") or [])
+            for x in extras:
+                full = self.get_item(x["id"])
+                if full:
+                    x["status"] = self.status_for(full, self.route_for(it["system"]), self.dest_for(it["system"]))
+                    if not x["title"] and x["part"] == "dlc" and it["system"] == "switch" and (full.get("meta") or {}).get("title_id"):
+                        name = self.switchdb.name_for(full["meta"]["title_id"]) or ""
+                        x["title"] = strip_game(name, str(it.get("title", ""))) or name
+            out["extras"] = extras
+        else:
+            base = next((g for g in grouped if g.get("part") == "base"), None)
+            if base:
+                out["base"] = {"id": base["id"], "title": base["title"]}
+        return out
+
+    def route_for(self, system_id: str) -> str:
+        s = self.systems.get(system_id)
+        return s.route if s else "none"
 
     def merged_counts(self) -> dict[str, int]:
         counts: dict[str, int] = {}
@@ -435,6 +463,7 @@ def create_app(agent: Agent | None = None) -> FastAPI:
         v["system_note"] = s.note if s else ""
         v["destinations"] = [{"id": x.id, "name": x.name, "dest": agent.dest_for(x.id)} for x in agent.systems.all() if x.route == "ftp" and agent.dest_for(x.id)]
         v["tile_possible"] = bool(s and s.core and agent.dest_for(it["system"]).startswith(agent.config.ra_root.rstrip("/") + "/content/"))
+        v.update(agent.related(it))
         return v
 
     @app.post("/api/items/{item_id}/download")

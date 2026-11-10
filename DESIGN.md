@@ -170,6 +170,12 @@ Discover ─ hero (featured / recently added / "continue downloading") + shelves
   Destinations). The button is disabled with a reason when the PS5 is offline, the console has
   no destination, or the item's system has no PS5 target (PS3, Xbox 360 today).
 - Multi-file games download as one unit; progress is per game, not per file.
+- **Updates and DLC are not products.** A Switch dump is base + update + DLC files and a PS4
+  game is game + patch + additional content; each is its own item (copied on its own), but
+  the store folds them under the game (`gameshop/grouping.py`: Switch base title id, PS4 title
+  id, else the name plus `Update` / `DLC` tags). The tile says "Update, 2 DLC", the product page
+  lists them with their own Download buttons and a *Game + N add-ons* button. An update or DLC
+  whose game is missing stands in for it as one tile marked "no game".
 - Finished downloads are **remembered** ("On your PS5 ✓") by checking the destination over FTP
   (name + size), not by trusting our own records, so hand-copied files count too.
 - "Download to…" offers every destination and a PS5 folder browser for one-offs.

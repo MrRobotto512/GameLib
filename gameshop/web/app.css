@@ -93,7 +93,7 @@ h2 .count { color: var(--dim); font-size: 14px; font-weight: 600; }
 .tile:hover, .tile.focused, .tile:focus-visible { transform: translateY(-3px) scale(1.02); }
 .tile .art-wrap { position: absolute; inset: 0 0 64px 0; display: flex; align-items: center; justify-content: center; perspective: 900px; }
 .tile .t-title { font-weight: 700; font-size: 15px; line-height: 1.2; z-index: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tile .t-sub { color: var(--muted); font-size: 12px; z-index: 1; display: flex; gap: 8px; align-items: center; }
+.tile .t-sub { color: var(--muted); font-size: 12px; z-index: 1; display: flex; gap: 4px 8px; align-items: center; flex-wrap: wrap; } .tile .t-sub span { white-space: nowrap; }
 .tile .state { position: absolute; top: 12px; right: 12px; z-index: 2; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 999px; background: rgba(0,0,0,.45); }
 .state.onps5 { color: var(--green); } .state.running, .state.queued, .state.verifying { color: var(--gold); } .state.unsupported { color: var(--dim); } .state.failed { color: var(--red); }
 .tiles .tile { flex: none; height: 300px; }
@@ -245,6 +245,13 @@ h2 .count { color: var(--dim); font-size: 14px; font-weight: 600; }
 .dept-card .case.cart, .dept-card .case.disc, .dept-card .case.floppy { --scale: .5; }
 .dept-card .case.card { --scale: .9; }
 .dept-head .case.card { --scale: 1; }
+.extras-box { margin-top: 18px; }
+.extras-box h2 { margin: 0 0 8px; font-size: 18px; }
+.extras-box .row { align-items: center; }
+.extras-box .pill { margin: 0; flex: none; min-width: 92px; text-align: center; }
+.pill.update { background: rgba(106,165,255,.18); color: #cfe0ff; } .pill.dlc { background: rgba(245,196,81,.16); color: #ffe2a0; }
+.extras-box .sub .state { position: static; padding: 0; background: none; font-size: 12px; }
+.tile .t-sub .extras { color: var(--gold); }
 .note { background: rgba(245,196,81,.08); border: 1px solid rgba(245,196,81,.3); border-radius: 12px; padding: 12px 16px; color: #ffe2a0; font-size: 14px; margin: 10px 0 16px; }
 
 /* ---------- toast / modal ---------- */

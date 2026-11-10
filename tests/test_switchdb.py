@@ -50,6 +50,7 @@ def test_lookup_art_and_facts(tmp_path: Path):
     by_id = compact(RAW)
     assert set(by_id) == {"0100CBB027BA4000", "01006F8002326000", "0100ABCD00000000"}
     db.load_from(by_id)
+    assert db.name_for("0100abcd00000000") == "ACA NEOGEO KOF 2000" and db.name_for("0000000000000000") is None
 
     base = {"system": "switch", "title": "Avatar Legends™ The Fighting Game", "rel": "a.nsp",
             "meta": {"stem": "Avatar Legends™ The Fighting Game [0100CBB027BA4000][v0][Base]", "title_id": "0100CBB027BA4000"}}

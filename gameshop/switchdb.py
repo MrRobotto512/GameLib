@@ -180,6 +180,14 @@ class SwitchTitleDB:
                 return by_id[self._by_name[k]], "base"
         return None
 
+    def name_for(self, tid: str) -> str | None:
+        """titledb's name for this exact title id (a DLC's own name), None if unknown or not ready."""
+        try:
+            rec = self._ensure().get(tid.upper())
+        except NotReady:
+            return None
+        return rec.get("name") if rec else None
+
     def art_url(self, item: dict[str, Any], kind: str = "box") -> str | None:
         found = self.record(item)
         if not found:
