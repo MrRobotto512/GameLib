@@ -13,6 +13,7 @@ from typing import Any, Callable
 
 from .art import candidates
 from .db import Database
+from .naming import parse_name
 from .rdb import load_games
 from .switchdb import NotReady
 from .systems import SystemsTable
@@ -40,6 +41,7 @@ class MetadataStore:
         self.dir.mkdir(parents=True, exist_ok=True)
         self.enabled = enabled
         self._index: dict[str, dict[str, dict[str, Any]]] = {}       # system id -> norm name -> record
+        self._titles: dict[str, dict[str, list[dict[str, Any]]]] = {}  # system id -> norm title -> records
         self._failed: dict[str, float] = {}
         self._lock = threading.Lock()
         # item -> facts | None; may raise switchdb.NotReady. Tried before the rdb lookup.
@@ -115,14 +117,55 @@ class MetadataStore:
                 fallback = fallback or rec
         if fallback:
             return fallback
-        # last resort: the title with a region tag, never a hack or a homebrew variant
+        return self._match_title(item)
+
+    _REGION_RANK = ("usa", "world", "usa, europe", "europe", "japan")
+
+    def _match_title(self, item: dict[str, Any]) -> dict[str, Any] | None:
+        """Same title, different tags: 'RoboCop 3 (USA, Europe)' vs the database's 'RoboCop 3 (World)',
+        '10th Frame' vs '10th Frame (USA)'. Prefers clean names (no [hack]/[cr] brackets), the item's
+        own region, then USA/World/Europe/Japan, then records with facts."""
+        titles = self._titles.get(item["system"]) or {}
         t = norm(item.get("title", ""))
-        if len(t) >= 4:
-            for region in ("usa", "europe", "japan", "world", "usa europe", "japan usa", "europe usa"):
-                rec = index.get(f"{t} {region}")
-                if rec and (rec.get("releaseyear") or rec.get("publisher")):
-                    return rec
-        return None
+        hits = titles.get(t) if len(t) >= 3 else None
+        if not hits:
+            return None
+        want = norm(item.get("region") or "")
+
+        def rank(rec):
+            name = rec.get("name", "")
+            region = norm(parse_name(name).region or "")
+            return (
+                "[" in name,                                              # hacks, cracks, trainers last
+                0 if want and region == want else 1,
+                self._REGION_RANK.index(region) if region in self._REGION_RANK else len(self._REGION_RANK),
+                0 if (rec.get("releaseyear") or rec.get("publisher")) else 1,
+                len(name),
+            )
+        return sorted(hits, key=rank)[0]
+
+    def thumb_names(self, item: dict[str, Any]) -> list[str]:
+        """Names worth trying on libretro-thumbnails beyond the file's own: the database's name for
+        this game, which is what the thumbnail files are named after."""
+        try:
+            index = self._system_index(item["system"])
+        except Exception:   # noqa: BLE001
+            return []
+        if index is None:
+            return []
+        rec = self._match(index, item)
+        if not rec:
+            return []
+        out = []
+        for key in ("name", "rom_name"):
+            v = rec.get(key)
+            if isinstance(v, bytes):
+                v = v.decode("utf-8", "replace")
+            if isinstance(v, str) and v:
+                stem = v.rsplit(".", 1)[0] if key == "rom_name" and "." in v and len(v.rsplit(".", 1)[1]) <= 4 else v
+                if stem not in out:
+                    out.append(stem)
+        return out
 
     # ---- per system ------------------------------------------------------------------
     def _system_index(self, system_id: str) -> dict[str, dict[str, Any]] | None:
@@ -168,6 +211,17 @@ class MetadataStore:
                 stem = key.rsplit(".", 1)[0] if "." in key and len(key.rsplit(".", 1)[1]) <= 4 else key
                 k = norm(stem)
                 index[k] = richer(index[k], g) if k in index else g
+        titles: dict[str, list[dict[str, Any]]] = {}
+        for g in games:
+            name = g.get("name")
+            if isinstance(name, bytes):
+                name = name.decode("utf-8", "replace")
+            if not isinstance(name, str) or not name:
+                continue
+            t = norm(parse_name(name).title)
+            if t:
+                titles.setdefault(t, []).append(g)
         with self._lock:
             self._index[system_id] = index
+            self._titles[system_id] = titles
         return index

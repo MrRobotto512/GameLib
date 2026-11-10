@@ -55,7 +55,8 @@ class Agent:
                                       on_ready=self._switch_ready)
         self.art.providers.append(lambda it, kind: self.switchdb.art_url(it, kind) if it["system"] == "switch" else None)
         self.metadata.providers.append(lambda it: self.switchdb.facts(it) if it["system"] == "switch" else None)
-        self._forget_misses("switch")                 # misses recorded before this provider existed
+        self.art.name_hint = self.metadata.thumb_names
+        self._forget_misses_once()                     # matching improved: retry everything once per version
         self.worker = TransferWorker(self.db, lambda: self.client(), self.file_url,
                                      skip_existing=lambda: self.store.config.skip_existing, after_ftp=self._after_ftp)
         self.peers = PeerDirectory(self.config.agent_id, self.config.name, lambda: self.config.port,
@@ -99,6 +100,15 @@ class Agent:
         return s.resolve_dest(self.config.ra_root, self.config.destinations) if s else ""
 
     # ---- library: local + peers ----------------------------------------------------
+    def _forget_misses_once(self) -> None:
+        from . import __version__
+        marker = self.data_dir / f".misses-cleared-{__version__}"
+        if marker.exists():
+            return
+        self.db.execute("DELETE FROM art WHERE status='missing'")
+        self.db.execute("DELETE FROM metadata WHERE status='missing'")
+        marker.write_text("")
+
     def _forget_misses(self, system_id: str) -> None:
         ids = [r["id"] for r in self.db.items(system=system_id)]
         for i in ids:

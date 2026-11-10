@@ -64,6 +64,8 @@ class ArtCache:
         self._lock = threading.Lock()
         # (item, kind) -> image URL | None; may raise switchdb.NotReady. Tried before libretro.
         self.providers: list[Callable[[dict[str, Any], str], str | None]] = []
+        # item -> extra names to try on libretro-thumbnails (the database's own name for the game)
+        self.name_hint: Callable[[dict[str, Any]], list[str]] | None = None
 
     KINDS = {"box": "Named_Boxarts", "snap": "Named_Snaps", "title": "Named_Titles"}
 
@@ -109,16 +111,23 @@ class ArtCache:
             if not system.thumbs:
                 self.db.set_art(key, "missing")
                 return None
-            for name in candidates(item):
+            names = candidates(item)
+            if self.name_hint:
+                names += [n for n in self.name_hint(item) if n not in names]
+            unsure = False
+            for name in names:
                 url = BASE.format(repo=system.thumbs, kind=self.KINDS[kind],
                                   name=urllib.parse.quote(libretro_thumb_name(name)))
-                data = _get(url)
+                status, data = _get_status(url)
                 if data:
                     p = self.path_for(item["id"], kind)
                     p.write_bytes(data)
                     self.db.set_art(key, "ok", str(p))
                     return p
-            self.db.set_art(key, "missing")
+                if status != 404:
+                    unsure = True                    # throttled, offline, timeout: not a real miss
+            if not unsure:
+                self.db.set_art(key, "missing")
             return None
         finally:
             with self._lock:
@@ -133,6 +142,18 @@ class ArtCache:
             with cf.ThreadPoolExecutor(max_workers=workers) as ex:
                 list(ex.map(lambda it: self.get(it), todo))
         threading.Thread(target=run, name="gameshop-art", daemon=True).start()
+
+
+def _get_status(url: str, timeout: float = 8.0) -> tuple[int, bytes | None]:
+    """(HTTP status or 0, body) — 404 is the only answer that means 'this art does not exist'."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "GameShop/0.1"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:   # noqa: S310
+            return r.status, (r.read() if r.status == 200 else None)
+    except urllib.error.HTTPError as e:
+        return e.code, None
+    except (urllib.error.URLError, OSError, ValueError):
+        return 0, None
 
 
 def _get(url: str, timeout: float = 8.0) -> bytes | None:

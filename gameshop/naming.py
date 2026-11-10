@@ -39,10 +39,25 @@ class ParsedName:
         return re.sub(r"[^a-z0-9]+", " ", t).strip()
 
 
+_CAMEL = re.compile(r"(?<=[a-z])(?=[A-Z])|(?<=[a-z])(?=\d)|(?<=\d)(?=[A-Z][a-z])")
+
+
+def split_camel(word: str) -> str:
+    """'1000ccTurbo' -> '1000cc Turbo', 'ChaosEngine2' -> 'Chaos Engine 2'."""
+    return _CAMEL.sub(" ", word).strip()
+
+
 def parse_name(stem: str) -> ParsedName:
     """Parse a file stem (no extension)."""
     out = ParsedName(title=stem.strip(), stem=stem)
     tags: list[str] = []
+    if " " not in stem and "_" in stem and "(" not in stem:
+        # WHDLoad-style archive name: Title_v1.2_AGA_CD32 — camel-cased title, underscore tags
+        head, *rest = stem.split("_")
+        title = split_camel(head)
+        if len(title) >= 2:
+            out.title, out.tags = title, [r for r in rest if r]
+            return out
     region = ""
     disc = ""
     first = _PAREN.search(stem)
