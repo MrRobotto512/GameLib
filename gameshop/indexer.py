@@ -10,6 +10,7 @@ from typing import Any, Iterable
 
 from .naming import parse_name
 from .pkg import read_pkg
+from .sniff import is_project_dir, looks_like_game, resolve_mixed
 from .systems import System, SystemsTable
 
 _CUE_FILE = re.compile(r'^\s*FILE\s+"?([^"\r\n]+?)"?\s+\w+\s*$', re.I | re.M)
@@ -26,7 +27,8 @@ def item_id(source: str, rel: str) -> str:
 
 def _walk(root: Path) -> Iterable[Path]:
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d.lower() not in _SKIP_DIRS and not d.startswith(".")]
+        dirnames[:] = [d for d in dirnames if d.lower() not in _SKIP_DIRS and not d.startswith(".")
+                       and not is_project_dir(Path(dirpath) / d)]
         for f in filenames:
             if not f.startswith("."):
                 yield Path(dirpath) / f
@@ -86,7 +88,8 @@ class Indexer:
     # ---- strategies -------------------------------------------------------------
     def _scan_files(self, root: Path, system: System) -> list[dict[str, Any]]:
         exts = set(system.exts)
-        files = [p for p in _walk(root) if _ext(p) in exts or (system.group == "cue" and _ext(p) in _TRACK_EXTS)]
+        files = [p for p in _walk(root) if (_ext(p) in exts or (system.group == "cue" and _ext(p) in _TRACK_EXTS))
+                 and looks_like_game(p, _ext(p), _size(p))]
         consumed: set[Path] = set()
         items: list[dict[str, Any]] = []
         if system.group == "cue":
@@ -126,16 +129,31 @@ class Indexer:
         return items
 
     def _scan_mixed(self, root: Path) -> list[dict[str, Any]]:
-        """A 'mixed' source: guess the system per file from its extension, unambiguous ones only."""
+        """A 'mixed' source: the system per file from its extension when only one console uses
+        it, else from the file's contents where that can be told (see sniff); the rest are left out."""
         by_ext: dict[str, list[System]] = {}
         for s in self.systems.all():
             for e in s.exts:
                 by_ext.setdefault(e, []).append(s)
         items = []
         for p in _walk(root):
-            cands = by_ext.get(_ext(p), [])
+            ext = _ext(p)
+            cands = by_ext.get(ext, [])
+            if not cands:
+                continue
+            size = _size(p)
+            if not looks_like_game(p, ext, size):
+                continue
             if len(cands) == 1:
-                items.append(self._make(root, cands[0], p, [p]))
+                system = cands[0]
+            else:
+                sid = resolve_mixed(p, ext, size)
+                system = next((s for s in cands if s.id == sid), None)
+                if system is None:
+                    continue
+            if ext in _TRACK_EXTS and self._has_sibling_container(p):
+                continue                          # a track of the cue next to it
+            items.append(self._make(root, system, p, [p]))
         return items
 
     # ---- helpers -------------------------------------------------------------------
@@ -183,12 +201,14 @@ class Indexer:
         }
 
 
-def scan_all(indexer: Indexer, db, sources) -> dict[str, int]:
-    """Scan every configured source into the database. Returns {source path: item count}."""
+def scan_all(indexer: Indexer, db, sources, hidden: Iterable[str] = ()) -> dict[str, int]:
+    """Scan every configured source into the database, leaving out the item ids in `hidden`
+    (things the user hid from the item page). Returns {source path: item count}."""
     counts = {}
+    hide = set(hidden)
     for src in sources:
         t = time.time()
-        items = indexer.scan_source(src.path, src.system)
+        items = [it for it in indexer.scan_source(src.path, src.system) if it["id"] not in hide]
         db.upsert_items(items, src.path)
         counts[src.path] = len(items)
     return counts

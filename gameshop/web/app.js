@@ -207,7 +207,8 @@
         (meta.app_version ? '<dt>Version</dt><dd>' + esc(meta.app_version) + '</dd>' : '') +
         '<dt>Goes to</dt><dd>' + (it.route === 'dpi' ? 'Installed by the PS5 (Direct Package Installer)' : it.route === 'elf' ? 'ELF loader, port 9021' : esc(it.dest || 'no folder set')) + '</dd></dl>' +
         '<p style="margin-top:22px"><button class="btn small" id="flip" data-nav>Flip it over</button> <button class="btn small" id="view-swap" data-nav>' + (state.view === 'media' ? 'Show the box' : 'Show the ' + mediaName(it.case || sysOf(it.system).case || 'generic')) + '</button> ' +
-        (it.tile_possible ? '<button class="btn small" id="tile" data-nav title="Make a home-screen tile in RetroArch (needs its WebUI running)">Add to PS5 home screen</button>' : '') + '</p>' +
+        (it.tile_possible ? '<button class="btn small" id="tile" data-nav title="Make a home-screen tile in RetroArch (needs its WebUI running)">Add to PS5 home screen</button>' : '') +
+        (it.peer ? '' : ' <button class="btn small" id="hide" data-nav title="Not a game? Take it out of the store. Undo on the Setup page.">Hide this</button>') + '</p>' +
         (it.art ? '<div class="shots" id="shots"><img src="/art/' + it.id + '?kind=snap" alt="" onerror="this.remove()"><img src="/art/' + it.id + '?kind=title" alt="" onerror="this.remove()"></div>' : '') + '</div>' +
         '<div class="card get" id="get"></div></div>';
       view.innerHTML = html;
@@ -216,6 +217,8 @@
       $('#view-swap').addEventListener('click', function () { setView(state.view === 'media' ? 'box' : 'media'); });
       var tileBtn = $('#tile');
       if (tileBtn) tileBtn.addEventListener('click', function () { tileBtn.disabled = true; api('/api/items/' + it.id + '/tile', { method: 'POST' }).then(function () { toast('Tile created. It appears on the home screen once RetroArch closes.', 5000); }).catch(function (e) { toast(e.message, 6000); }).then(function () { tileBtn.disabled = false; }); });
+      var hideBtn = $('#hide');
+      if (hideBtn) hideBtn.addEventListener('click', function () { api('/api/items/' + it.id + '/hide', { method: 'POST' }).then(function () { toast('Hidden. Undo under Setup › Sources.', 5000); return loadState(); }).then(function () { location.hash = '#/dept/' + it.system; }).catch(function (e) { toast(e.message, 6000); }); });
       renderGet(it, st);
       watchItem(it.id);
     });
@@ -349,8 +352,11 @@
       '<div class="card form"><h2 style="margin-top:0">Sources <span class="count">folders on this PC</span></h2>' +
       (cfg.sources.length ? cfg.sources.map(function (s) { return '<div class="row"><div class="grow"><div class="title">' + esc(s.path) + '</div><div class="sub">' + esc(sysOf(s.system).name || s.system) + '</div></div><button class="btn small" data-smb="' + esc(s.path) + '" data-nav title="Play this folder in place from RetroArch over SMB">Share</button><button class="btn small danger" data-rm="' + esc(s.path) + '" data-nav>Remove</button></div>'; }).join('') : '<p class="muted">No folders yet.</p>') +
       '<label>Add a folder</label><div class="inline"><input id="src-path" placeholder="D:\\Games\\PS1"><button class="btn small" id="src-browse" data-nav>Browse…</button></div>' +
-      '<label>Which console is in it?</label><select id="src-sys"><option value="mixed">Mixed (guess by file type, unambiguous only)</option>' + state.app.systems.map(function (s) { return '<option value="' + s.id + '">' + esc(s.name) + '</option>'; }).join('') + '</select>' +
-      '<p><button class="btn gold" id="src-add" data-nav>Add source</button> <button class="btn" id="rescan" data-nav>Rescan all</button></p></div></div>';
+      '<label>Which console is in it?</label><select id="src-sys"><option value="mixed">Mixed (tell by file type and contents)</option>' + state.app.systems.map(function (s) { return '<option value="' + s.id + '">' + esc(s.name) + '</option>'; }).join('') + '</select>' +
+      '<p><button class="btn gold" id="src-add" data-nav>Add source</button> <button class="btn" id="rescan" data-nav>Rescan all</button></p>' +
+      ((cfg.hidden || []).length ? '<h3 style="margin:18px 0 6px">Hidden <span class="count">' + cfg.hidden.length + ' not shown in the store</span></h3>' +
+        cfg.hidden.map(function (h) { return '<div class="row"><div class="grow"><div class="title">' + esc(h.title) + '</div><div class="sub">' + esc(h.source) + ' · ' + esc(h.rel) + '</div></div><button class="btn small" data-unhide="' + esc(h.id) + '" data-nav>Unhide</button></div>'; }).join('') +
+        '<p><button class="btn small" id="unhide-all" data-nav>Unhide all</button></p>' : '') + '</div></div>';
     html += '<div class="card" style="margin-top:20px"><h2 style="margin-top:0">Destinations <span class="count">where each console\'s games go on the PS5</span></h2><p class="muted">Blank uses the default. {ra} is the RetroArch folder above.</p><table class="dest-table">' +
       state.app.systems.filter(function (s) { return s.route === 'ftp'; }).map(function (s) {
         return '<tr><td style="width:220px"><b>' + esc(s.name) + '</b><div class="dim" style="font-size:12px">' + esc(s.default_dest || 'no default — enter one') + '</div></td><td><input data-dest="' + s.id + '" value="' + esc(cfg.destinations[s.id] || '') + '" placeholder="' + esc(s.default_dest || '/data/...') + '"></td></tr>';
@@ -386,6 +392,10 @@
     $('#src-add').addEventListener('click', function () { api('/api/sources', { method: 'POST', body: { path: $('#src-path').value.trim(), system: $('#src-sys').value } }).then(function () { toast('Added. Scanning…'); return loadState(); }).then(render).catch(function (e) { toast(e.message); }); });
     $('#rescan').addEventListener('click', function () { api('/api/rescan', { method: 'POST' }).then(function () { toast('Rescanning'); }); });
     $$('[data-rm]').forEach(function (b) { b.addEventListener('click', function () { api('/api/sources?path=' + encodeURIComponent(b.dataset.rm), { method: 'DELETE' }).then(loadState).then(render); }); });
+    function unhide(ids) { api('/api/hidden/unhide', { method: 'POST', body: { ids: ids } }).then(function () { toast('Back in the store after the rescan.'); return loadState(); }).then(render); }
+    $$('[data-unhide]').forEach(function (b) { b.addEventListener('click', function () { unhide([b.dataset.unhide]); }); });
+    var ua = $('#unhide-all');
+    if (ua) ua.addEventListener('click', function () { unhide((cfg.hidden || []).map(function (h) { return h.id; })); });
     $('#src-browse').addEventListener('click', function () { pickLocal(function (p) { $('#src-path').value = p; }, false); });
     $$('[data-smb]').forEach(function (b) { b.addEventListener('click', function () { api('/api/smb/info?path=' + encodeURIComponent(b.dataset.smb)).then(showSmb).catch(function (e) { toast(e.message); }); }); });
     // peers

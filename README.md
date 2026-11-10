@@ -47,7 +47,11 @@ powershell -ExecutionPolicy Bypass -File tools\firewall.ps1
 1. **Settings → PS5**: enter the console's address (or **Scan network**). The health list shows
    FTP, Direct Package Installer, ELF loader and RetroArch's WebUI, each with a fix hint.
 2. **Settings → Sources**: add a folder of backups and say which console is in it. Repeat per
-   console. "Mixed" guesses by file extension and only keeps unambiguous ones.
+   console. "Mixed" tells the console by file type and, where several share one, by what is
+   inside the file (an ISO is read far enough to tell PS2 from PSX, PSP, PS3, GameCube, Wii
+   and Xbox). Text files, files that only have a game's extension, unpacked discs and
+   emulator source trees are left out. Anything that still shows up wrongly has a **Hide
+   this** button on its page.
 3. **Settings → Destinations**: blank rows use the RetroArch layout
    (`/data/homebrew/PPSA99169/content/<system>/`). Switch, original Xbox and standalone PS5SX2
    have no default and need a folder.

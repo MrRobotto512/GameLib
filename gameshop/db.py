@@ -107,6 +107,9 @@ class Database:
             self._conn.execute("DELETE FROM items WHERE source=? AND seen<?", (source, now))
             self._conn.commit()
 
+    def delete_item(self, item_id: str) -> None:
+        self.execute("DELETE FROM items WHERE id=?", (item_id,))
+
     def delete_source(self, source: str) -> None:
         self.execute("DELETE FROM items WHERE source=?", (source,))
 

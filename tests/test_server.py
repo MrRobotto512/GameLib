@@ -93,3 +93,34 @@ def test_end_to_end(tmp_path: Path, monkeypatch):
         assert names == ["bios.bin"]
         assert c.get("/").status_code == 200 and c.get("/static/app.js").status_code == 200
         agent.worker.stop()
+
+
+def test_hide_and_unhide(tmp_path: Path):
+    lib = tmp_path / "lib"
+    lib.mkdir()
+    (lib / "Tekken 3 (USA).chd").write_bytes(b"T" * 2000)
+    (lib / "junk.chd").write_bytes(b"J" * 2000)
+    agent = Agent(tmp_path / "data")
+    agent.store.config.art_enabled = False
+    agent.store.config.discovery = False
+    with Server(agent) as srv:
+        c = httpx.Client(base_url=f"http://127.0.0.1:{srv.port}", timeout=10)
+        c.post("/api/sources", json={"path": str(lib), "system": "psx"})
+        for _ in range(50):
+            if c.get("/api/state").json()["total"] == 2:
+                break
+            time.sleep(0.1)
+        junk = next(i for i in c.get("/api/items").json() if i["title"] == "junk")
+        r = c.post(f"/api/items/{junk['id']}/hide")
+        assert r.status_code == 200 and [h["rel"] for h in r.json()["hidden"]] == ["junk.chd"]
+        assert [i["title"] for i in c.get("/api/items").json()] == ["Tekken 3"]
+        agent.rescan()                                               # stays hidden across rescans
+        assert [i["title"] for i in c.get("/api/items").json()] == ["Tekken 3"]
+        assert c.get("/api/config").json()["hidden"][0]["title"] == "junk"
+        c.post("/api/hidden/unhide", json={"ids": [junk["id"]]})
+        for _ in range(50):
+            if c.get("/api/state").json()["total"] == 2:
+                break
+            time.sleep(0.1)
+        assert sorted(i["title"] for i in c.get("/api/items").json()) == ["Tekken 3", "junk"]
+        assert c.get("/api/config").json()["hidden"] == []

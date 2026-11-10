@@ -161,7 +161,7 @@ class Agent:
         with self._scan_lock:
             self.scanning = True
             try:
-                counts = scan_all(self.indexer, self.db, self.config.sources)
+                counts = scan_all(self.indexer, self.db, self.config.sources, [h["id"] for h in self.config.hidden])
             finally:
                 self.scanning = False
         if self.config.art_enabled:
@@ -509,6 +509,26 @@ def create_app(agent: Agent | None = None) -> FastAPI:
     @app.post("/api/items/{item_id}/download")
     def download(item_id: str, body: dict[str, Any] | None = None):
         return agent.enqueue_item(item_id, (body or {}).get("dest") or None)
+
+    @app.post("/api/items/{item_id}/hide")
+    def hide(item_id: str):
+        """Take a wrongly indexed file out of the store; it stays out across rescans until unhidden."""
+        it = agent.db.item(item_id)
+        if not it:
+            raise HTTPException(404)
+        entry = {"id": item_id, "source": it["source"], "rel": it["rel"], "title": it["title"]}
+        agent.store.config.hidden = [h for h in agent.config.hidden if h["id"] != item_id] + [entry]
+        agent.store.save()
+        agent.db.delete_item(item_id)
+        return {"ok": True, "hidden": agent.config.hidden}
+
+    @app.post("/api/hidden/unhide")
+    def unhide(body: dict[str, Any]):
+        ids = set(body.get("ids") or [])
+        agent.store.config.hidden = [h for h in agent.config.hidden if h["id"] not in ids]
+        agent.store.save()
+        threading.Thread(target=agent.rescan, daemon=True).start()
+        return {"ok": True, "hidden": agent.config.hidden}
 
     @app.post("/api/items/{item_id}/tile")
     def tile(item_id: str):

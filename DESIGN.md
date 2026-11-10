@@ -76,7 +76,14 @@ button sends it to the folder chosen for that console in Settings. The look foll
 - **Sources and index.** A *source* is a folder you add by hand, tagged with a system (or
   "mixed / pick per item"). The indexer lists files under each source, groups multi-file games
   (`.cue`+`.bin`, `.m3u` sets, folders for DOS/ScummVM), and stores name, size, system and
-  path in SQLite. No guessing from folder names unless you ask it to suggest.
+  path in SQLite. No guessing from folder names unless you ask it to suggest. The scanner
+  looks inside files rather than trusting extensions (`sniff.py`): plain text is never a game,
+  a `.iso`/`.img` must carry a disc signature, and a Mixed source tells the shared extensions
+  apart by content (SYSTEM.CNF for PS2/PSX, PSP_GAME, PS3_GAME, the GameCube/Wii/Xbox magic,
+  PS3 vs PS4 `.pkg`, the SEGA header in `.bin`). Folders that are an unpacked disc
+  (SYSTEM.CNF) or a source tree (.git, CMakeLists.txt, package.json ...) are not walked.
+  Whatever still slips through has a **Hide this** button on its page; hidden items are
+  listed under Settings → Sources and stay out across rescans until unhidden.
 - **File server + transfer worker.** HTTP with `Range` support (what DPI needs) and a queue of
   FTP jobs to the PS5.
 - **Storefront.** One web app (§4) with a responsive layout and a **TV mode** (10‑foot UI,

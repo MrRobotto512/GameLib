@@ -37,6 +37,7 @@ class Config:
     art_enabled: bool = True
     skip_existing: bool = True
     tv_mode: bool = False
+    hidden: list[dict] = field(default_factory=list)              # [{id, source, rel, title}] items hidden from the store
 
     @staticmethod
     def from_dict(d: dict[str, Any]) -> "Config":
