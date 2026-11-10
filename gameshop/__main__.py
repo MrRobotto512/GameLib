@@ -45,6 +45,16 @@ def main() -> None:
         agent.store.config.bind = args.bind
     app = create_app(agent)
     url = f"http://127.0.0.1:{agent.config.port}/"
+    from .single import claim_port
+    claim = claim_port(agent.config.bind, agent.config.port)
+    if not claim.ok:
+        print(claim.message)
+        if args.tray:
+            from .tray import say
+            say(claim.message)
+        sys.exit(1)
+    if claim.replaced:
+        print(f"took port {agent.config.port} over from Game Shop v{claim.replaced}")
     print(f"Game Shop {agent.config.name}: {url}  (PS5 opens http://{agent.local_ip_for(agent.config.ps5_host)}:{agent.config.port}/)")
     if args.tray:
         from .tray import run_with_tray

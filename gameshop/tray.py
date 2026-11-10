@@ -28,9 +28,17 @@ def _ask(text: str, title: str = "Game Shop") -> bool:
 
 def _say(text: str, title: str = "Game Shop") -> None:
     try:
-        ctypes.windll.user32.MessageBoxW(None, text, title, 0x40 | 0x40000)
+        ctypes.windll.user32.MessageBoxW(None, text, title, 0x40 | 0x40000 | 0x10000)   # MB_ICONINFORMATION | MB_TOPMOST | MB_SETFOREGROUND
     except Exception:   # noqa: BLE001
         pass
+
+
+say = _say
+
+
+def _log(text: str) -> None:
+    """A line in gameshop.log (stdout is redirected there in the windowed build)."""
+    print(f"[update] {text}", flush=True)
 
 
 class Updater:
@@ -65,12 +73,15 @@ class Updater:
     def _run(self) -> None:
         self.busy, self.status = True, "Checking for updates…"
         self._refresh()
+        _log("checking GitHub")
         try:
             rel = update.check()
             self.latest = rel
             if rel is None:
+                _log("GitHub not reachable")
                 _say("Could not reach GitHub to check for updates.")
                 return
+            _log(f"latest is v{rel.version}, this is v{__version__}")
             if not rel.newer:
                 _say(f"You have the latest version (v{__version__}).")
                 return
@@ -89,16 +100,21 @@ class Updater:
                 return
             self.status = "Downloading update… 0%"
             self._refresh()
+            self._notify(f"Downloading Game Shop v{rel.version} ({size_mb:.0f} MB)…")
+            _log(f"downloading {rel.asset_url}")
 
             def prog(done, total):
                 pct = int(done * 100 / total) if total else 0
                 self.status = f"Downloading update… {pct}%"
                 self._refresh()
             new_exe = update.download(rel, prog)
+            _log(f"downloaded {new_exe} ({new_exe.stat().st_size} bytes); swapping and restarting")
             self.status = "Restarting…"
             self._refresh()
+            self._notify(f"Installing v{rel.version}. Game Shop closes and comes back in a few seconds.")
             update.apply_and_restart(new_exe)
         except Exception as exc:   # noqa: BLE001
+            _log(f"failed: {exc!r}")
             _say(f"Update failed: {exc}")
         finally:
             self.busy, self.status = False, ""
@@ -129,6 +145,19 @@ def run_with_tray(agent: Agent, app, open_browser: bool = False) -> None:
     config = uvicorn.Config(app, host=agent.config.bind, port=agent.config.port, log_level="warning")
     server = uvicorn.Server(config)
     threading.Thread(target=server.run, name="gameshop-http", daemon=True).start()
+
+    def check_started():
+        """A copy whose server never came up must not sit in the tray looking alive."""
+        if not server.started:
+            print(f"the server did not start on {agent.config.bind}:{agent.config.port}; quitting", flush=True)
+            _say(f"Game Shop could not listen on port {agent.config.port}. See gameshop.log in the data folder.")
+            try:
+                holder["icon"].stop()
+            except Exception:   # noqa: BLE001
+                pass
+            import os
+            os._exit(1)
+    threading.Timer(15.0, check_started).start()
     if open_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
 
@@ -158,5 +187,6 @@ def run_with_tray(agent: Agent, app, open_browser: bool = False) -> None:
     )
     icon = pystray.Icon("gameshop", _icon_image(), f"Game Shop — {agent.config.name}", menu)
     holder["icon"] = icon
+    agent.quit_hooks.append(lambda: (setattr(server, "should_exit", True), icon.stop()))
     threading.Timer(20.0, updater.check_quietly).start()
     icon.run()

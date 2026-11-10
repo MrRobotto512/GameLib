@@ -97,19 +97,25 @@ def swap_script(exe: Path, new_exe: Path, pid: int, args: list[str]) -> str:
     built-ins and `ping` (as a one-second sleep) are used: `timeout` refuses to run without a
     console and `tasklist | find` opened a console window per try. `pid` is kept for the log."""
     quoted = " ".join(f'"{a}"' for a in args)
+    log = '"%TEMP%\\gameshop-update.log"'
     return (
         "@echo off\r\n"
         f"rem Game Shop update: waiting for process {pid} to exit\r\n"
+        f"echo %DATE% %TIME% waiting for process {pid}, then moving \"{new_exe}\" over \"{exe}\" >> {log}\r\n"
         "set TRIES=0\r\n"
         ":move\r\n"
         "ping -n 2 127.0.0.1 >NUL\r\n"
         f'move /y "{new_exe}" "{exe}" >NUL 2>&1\r\n'
         "if not errorlevel 1 goto start\r\n"
         "set /a TRIES+=1\r\n"
-        "if %TRIES% GEQ 120 goto done\r\n"
+        "if %TRIES% GEQ 120 goto giveup\r\n"
         "goto move\r\n"
         ":start\r\n"
+        f"echo %DATE% %TIME% moved after %TRIES% tries, starting {quoted} >> {log}\r\n"
         f'start "" /d "{exe.parent}" "{exe}" {quoted}\r\n'
+        "goto done\r\n"
+        ":giveup\r\n"
+        f"echo %DATE% %TIME% gave up: the old exe never let go >> {log}\r\n"
         ":done\r\n"
         'del "%~f0"\r\n')
 
@@ -128,5 +134,6 @@ def apply_and_restart(new_exe: Path, extra_args: list[str] | None = None) -> Non
     exe = Path(sys.executable)
     script = Path(tempfile.gettempdir()) / "gameshop-update.cmd"
     script.write_text(swap_script(exe, new_exe, os.getpid(), extra_args if extra_args is not None else sys.argv[1:]), encoding="ascii")
+    print(f"[update] swap script {script} written; exiting so it can replace {exe}", flush=True)
     run_detached(["cmd.exe", "/c", str(script)], cwd=exe.parent)
     threading.Timer(0.5, lambda: os._exit(0)).start()

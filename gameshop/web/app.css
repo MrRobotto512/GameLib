@@ -86,7 +86,7 @@ h2 .count { color: var(--dim); font-size: 14px; font-weight: 600; }
 
 /* ---------- shelves and tiles ---------- */
 .shelf { display: flex; gap: 16px; overflow-x: auto; padding: 10px 4px 16px; scroll-snap-type: x proximity; scrollbar-width: thin; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
 .tile { background: #1b1736; position: relative; scroll-snap-align: start; flex: 0 0 230px; height: 290px; border-radius: 20px; overflow: hidden; border: 1px solid var(--line);
   background: linear-gradient(160deg, color-mix(in srgb, var(--sys) 35%, #1b1736), #120f24 70%);
   display: flex; flex-direction: column; justify-content: flex-end; padding: 14px 16px; transition: transform .18s ease, box-shadow .18s ease; }
@@ -302,9 +302,6 @@ body.tv .legend { display: flex; }
 body.tv .top { padding: 16px 48px; }
 body.tv .view { padding: 32px 48px 110px; max-width: none; }
 body.tv .tabs a { padding: 12px 22px; font-size: 20px; }
-body.tv .tile { flex-basis: 300px; height: 360px; }
-body.tv .tiles { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
-body.tv .tile .t-title { font-size: 19px; }
 body.tv .hero h1 { font-size: 80px; }
 body.tv .btn { padding: 14px 28px; font-size: 20px; }
 body.tv .search { display: none; }
@@ -330,15 +327,16 @@ code { background: rgba(255,255,255,.08); padding: 1px 6px; border-radius: 6px; 
 .tv-only { display: none; }
 body.tv .tv-only { display: inline-block; align-self: center; color: var(--muted); }
 .product .desc { color: #d9d6ea; font-size: 16px; line-height: 1.5; max-width: 60ch; margin: 14px 0 0; }
-body.tv .tile { flex-basis: 340px; height: 200px; border-radius: 22px; padding: 14px 20px; }
-body.tv .tile .art-wrap { inset: 0 0 56px 0; }
-body.tv .tile .case { --scale: .55 !important; }
-body.tv .tile .case.cart, body.tv .tile .case.disc, body.tv .tile .case.floppy { --scale: .7 !important; }
-body.tv .tile .case.card { --scale: 1.3 !important; }
-body.tv .tile .t-title { font-size: 20px; }
-body.tv .tile .t-sub { font-size: 14px; }
-body.tv .tiles { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
-body.tv .tiles .tile { height: 210px; }
+/* library tiles on the TV: narrow portrait tiles, the box art taking most of each */
+body.tv .tile { flex-basis: 250px; height: 330px; border-radius: 22px; padding: 14px 18px; }
+body.tv .tile .art-wrap { inset: 0 0 62px 0; }
+body.tv .tile .case { --scale: 1.1 !important; }
+body.tv .tile .case.cart, body.tv .tile .case.disc, body.tv .tile .case.floppy { --scale: 1.15 !important; }
+body.tv .tile .case.card { --scale: 1.9 !important; }
+body.tv .tile .t-title { font-size: 18px; }
+body.tv .tile .t-sub { font-size: 13px; }
+body.tv .tiles { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 18px; }
+body.tv .tiles .tile { height: 330px; }
 body.tv .tile.focused, body.tv .tile:focus-visible { transform: scale(1.04); box-shadow: 0 0 0 3px #fff, 0 0 0 7px rgba(245,196,81,.55), 0 20px 50px rgba(0,0,0,.6) !important; }
 body.tv .hero { min-height: 440px; padding: 60px 70px; border-radius: 34px; }
 body.tv .hero-art { flex-basis: 560px; height: 380px; }

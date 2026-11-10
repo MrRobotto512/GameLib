@@ -54,6 +54,7 @@ class Agent:
         self.systems = load_systems()
         self.db = Database(self.data_dir / "gameshop.db")
         self.indexer = Indexer(self.systems)
+        self.quit_hooks: list = []                 # called (in order) when another copy asks us to quit
         self.art = ArtCache(self.db, self.systems, self.data_dir / "art", enabled=lambda: self.store.config.art_enabled)
         self.metadata = MetadataStore(self.db, self.systems, self.data_dir / "rdb", enabled=lambda: self.store.config.art_enabled)
         self.switchdb = SwitchTitleDB(self.data_dir / "titledb", enabled=lambda: self.store.config.art_enabled,
@@ -725,6 +726,26 @@ def create_app(agent: Agent | None = None) -> FastAPI:
         agent.store.save()
         agent.db.delete_source(path)
         return agent.config.to_dict()
+
+    @app.post("/api/quit")
+    def quit_(request: Request):
+        """Exit this copy so a newer one can take the port. Loopback callers only: a copy starting
+        on this PC (see single.py); never the LAN."""
+        host = request.client.host if request.client else ""
+        if host not in ("127.0.0.1", "::1"):
+            raise HTTPException(403)
+        print(f"asked to quit by another copy on this PC (v{__version__} leaving)", flush=True)
+
+        def go():
+            for hook in agent.quit_hooks:
+                try:
+                    hook()
+                except Exception:   # noqa: BLE001
+                    pass
+            time.sleep(0.5)
+            os._exit(0)
+        threading.Timer(0.3, go).start()
+        return {"ok": True, "version": __version__}
 
     @app.post("/api/rescan")
     def rescan():

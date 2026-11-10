@@ -111,7 +111,7 @@
       '<div class="t-sub"><span>' + esc(sys.name) + '</span>' + (item.facts && item.facts.year ? '<span>· ' + esc(item.facts.year) + '</span>' : item.region ? '<span>· ' + esc(item.region) + '</span>' : '') + '<span>· ' + fmtSize(item.size) + '</span>' + (ex ? '<span class="extras">· ' + esc(ex) + '</span>' : '') + '</div></a>';
   }
   function shelfHTML(items) { return '<div class="shelf">' + items.map(tileHTML).join('') + '</div>'; }
-  function scaleTiles(root) { $$('.tile .case', root).forEach(function (c) { c.style.setProperty('--scale', c.classList.contains('card') ? '1.6' : isMedia(c) ? '0.95' : '0.85'); }); }
+  function scaleTiles(root) { $$('.tile .case', root).forEach(function (c) { c.style.setProperty('--scale', c.classList.contains('card') ? '1.8' : isMedia(c) ? '1.1' : '1.05'); }); }
 
   // ---------- pages ----------
   var pages = {};

@@ -28,4 +28,5 @@ def test_swap_script_waits_moves_and_restarts():
     assert "tasklist" not in s and "timeout" not in s          # both opened console windows / refused to run
     assert 'move /y "C:\\x\\GameShop.exe.new" "C:\\x\\GameShop.exe"' in s
     assert 'start "" /d "C:\\x" "C:\\x\\GameShop.exe" "--port" "8750"' in s
+    assert "goto giveup" in s and "gameshop-update.log" in s            # a failed swap leaves a trace
     assert s.endswith('del "%~f0"\r\n')

@@ -71,7 +71,12 @@ button sends it to the folder chosen for that console in Settings. The look foll
  └────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**One program, three jobs.** `gameshop` is a single Python process per PC:
+**One program, three jobs.** `gameshop` is a single Python process per PC, and one per port:
+a copy that starts on a busy port asks the Game Shop holding it to quit (`POST /api/quit`,
+loopback callers only, `single.py`) and waits for the port, so double-clicking a newer exe
+next to the running one, or the self-update's restart racing the old copy's exit, ends with
+the new copy serving rather than a tray icon that serves nothing. The tray updater logs each
+step to `gameshop.log` and the swap script to `%TEMP%\gameshop-update.log`.
 
 - **Sources and index.** A *source* is a folder you add by hand, tagged with a system (or
   "mixed / pick per item"). The indexer lists files under each source, groups multi-file games
