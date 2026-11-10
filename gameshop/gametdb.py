@@ -47,6 +47,25 @@ _TRAIL = re.compile(r"\s*\((?:Demo|Virtual Console|PlayStation 3 the Best|Greate
 _VERSION = re.compile(r"\s+v\d+(\.\d+)*$", re.I)
 
 
+def is_placeholder(data: bytes) -> bool:
+    """GameTDB's stand-in cover for eShop-only games: a flat Switch-red card with a small icon
+    and "Nintendo eShop" on it. Real covers are never mostly that red (a busy red cover measured
+    18%, the placeholder 74%)."""
+    try:
+        import io
+        from PIL import Image
+        im = Image.open(io.BytesIO(data)).convert("RGB").resize((48, 72))
+        px = im.getdata()
+        red = sum(1 for r, g, b in px if r > 180 and g < 70 and b < 70)
+        return red / (48 * 72) > 0.5
+    except Exception:   # noqa: BLE001
+        return False
+
+
+def accept(data: bytes) -> bool:
+    return not is_placeholder(data)
+
+
 def code_region(system: str, code: str) -> str:
     """The region a GameTDB code was issued for, as a cover region, or '' when unknown."""
     if system == "ps3":

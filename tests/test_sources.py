@@ -92,3 +92,22 @@ def test_artcache_tries_lists_then_fallbacks(tmp_path: Path, monkeypatch):
     assert cache.get(two).read_bytes() == b"\xff\xd8B"       # libretro missed (404), the fallback had it
     assert cache.get(three) is None
     assert cache.db.art("three")["status"] == "missing"
+
+
+def test_placeholder_covers_are_rejected(tmp_path: Path, monkeypatch):
+    import io
+    from PIL import Image
+    from gameshop.art import ArtSource
+    from gameshop.gametdb import is_placeholder
+    def jpeg(color):
+        buf = io.BytesIO(); Image.new("RGB", (40, 60), color).save(buf, "JPEG"); return buf.getvalue()
+    red, blue = jpeg((230, 0, 18)), jpeg((20, 40, 200))
+    assert is_placeholder(red) and not is_placeholder(blue)
+    served = {"https://g/placeholder.jpg": red, "https://icon/x.jpg": blue}
+    monkeypatch.setattr(art, "_get", lambda url, timeout=8.0: served.get(url))
+    cache = ArtCache(Database(tmp_path / "t.db"), load_systems(), tmp_path / "art")
+    cache.providers.append(ArtSource(lambda it, kind: ["https://g/placeholder.jpg"], ["switch"], accept=lambda d: not is_placeholder(d)))
+    cache.providers.append(ArtSource(lambda it, kind: "https://icon/x.jpg", ["switch"]))
+    item = {"id": "s", "system": "switch", "title": "Mini Metro", "rel": "m.nsp", "meta": {}}
+    assert cache.get(item).read_bytes() == blue              # the placeholder fell through to the icon
+    assert cache.providers[0]({"id": "n", "system": "nes", "title": "x", "rel": "x", "meta": {}}, "box") is None

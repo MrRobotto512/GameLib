@@ -21,14 +21,14 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
-from .art import ArtCache
+from .art import ArtCache, ArtSource
 from .config import ConfigStore, Source
 from .db import Database
 from .grouping import fold, group_key, part_of, strip_game
 from .indexer import Indexer, scan_all
 from .metadata import MetadataStore
 from .switchdb import SwitchTitleDB
-from .gametdb import GameTDB, SYSTEMS as GAMETDB_SYSTEMS
+from .gametdb import GameTDB, SYSTEMS as GAMETDB_SYSTEMS, accept as gametdb_accept
 from .covers import patch_site_icon_urls, serial_cover_urls
 from .paths import resource_dir
 from .peers import PeerDirectory
@@ -59,10 +59,10 @@ class Agent:
         self.gametdb = GameTDB(self.data_dir / "gametdb", enabled=lambda: self.store.config.art_enabled,
                                hint=self._gametdb_names)
         # Switch: the retail front from GameTDB first, the eShop icon only when it has none
-        self.art.providers.append(lambda it, kind: self.gametdb.urls(it, kind) if it["system"] == "switch" else None)
+        self.art.providers.append(ArtSource(self.gametdb.urls, ["switch"], accept=gametdb_accept))
         self.art.providers.append(lambda it, kind: self.switchdb.art_url(it, kind) if it["system"] == "switch" else None)
         # after libretro misses: GameTDB for its other consoles, serial-keyed PS1 / PS2 covers, PS4 / PS5 icons
-        self.art.fallbacks.append(lambda it, kind: self.gametdb.urls(it, kind) if it["system"] in GAMETDB_SYSTEMS and it["system"] != "switch" else None)
+        self.art.fallbacks.append(ArtSource(self.gametdb.urls, GAMETDB_SYSTEMS - {"switch"}, accept=gametdb_accept))
         self.art.fallbacks.append(serial_cover_urls)
         self.art.fallbacks.append(patch_site_icon_urls)
         self.metadata.providers.append(lambda it: self.switchdb.facts(it) if it["system"] == "switch" else None)

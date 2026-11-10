@@ -56,6 +56,20 @@ def candidates(item: dict[str, Any]) -> list[str]:
     return uniq
 
 
+class ArtSource:
+    """An art lookup for some systems, optionally with a check on what it returns (a database's
+    generic placeholder cover is no cover)."""
+
+    def __init__(self, fn: Callable[[dict[str, Any], str], str | list[str] | None], systems: Iterable[str] | None = None,
+                 accept: Callable[[bytes], bool] | None = None):
+        self.fn, self.systems, self.accept = fn, (set(systems) if systems else None), accept
+
+    def __call__(self, item: dict[str, Any], kind: str) -> str | list[str] | None:
+        if self.systems is not None and item.get("system") not in self.systems:
+            return None
+        return self.fn(item, kind)
+
+
 class ArtCache:
     def __init__(self, db: Database, systems: SystemsTable, cache_dir: Path, enabled: lambda: bool = lambda: True):
         self.db = db
@@ -141,9 +155,10 @@ class ArtCache:
                 return None
             if isinstance(urls, str):
                 urls = [urls]
+            accept = getattr(source, "accept", None)
             for url in urls or []:
                 data = _get(url, timeout=20)
-                if data:
+                if data and (accept is None or accept(data)):
                     return data
         return False
 
