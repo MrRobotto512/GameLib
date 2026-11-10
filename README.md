@@ -70,6 +70,11 @@ makes `dist\GameShop.exe` (PyInstaller, about 25 MB). Double-clicking it runs th
 `GameShop.exe --console` keeps a console window for logs, and `--port`, `--data`, `--open` work as
 with `python -m gameshop`. From source, `python -m gameshop --tray` is the same tray app.
 
+**Updating:** the tray menu has *Check for updates*. It asks GitHub for the latest release, and when
+there is a newer `GameShop.exe` it downloads it next to the running one, swaps the files and
+restarts with the same arguments. The exe also checks once, quietly, about 20 seconds after it
+starts and shows a notification when something newer exists. From source, update with `git pull`.
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\install-autostart.ps1
 ```

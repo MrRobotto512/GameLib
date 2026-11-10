@@ -1,0 +1,21 @@
+"""Release parsing and version comparison for the tray self-update (offline)."""
+from gameshop import __version__, update
+
+
+def test_parse_version():
+    assert update.parse_version("v0.1.1") == (0, 1, 1)
+    assert update.parse_version("Game Shop 1.2.10") == (1, 2, 10)
+    assert update.parse_version("") == (0, 0, 0)
+
+
+def test_release_from_api_picks_exe():
+    data = {"tag_name": "v9.0.0", "html_url": "https://example/r", "body": "notes",
+            "assets": [{"name": "other.zip", "browser_download_url": "x", "size": 1},
+                       {"name": "GameShop.exe", "browser_download_url": "https://example/GameShop.exe", "size": 26000000}]}
+    rel = update.release_from_api(data)
+    assert rel.version == "9.0.0" and rel.asset_url == "https://example/GameShop.exe" and rel.asset_size == 26000000
+    assert rel.newer
+    same = update.release_from_api({"tag_name": "v" + __version__, "assets": []})
+    assert not same.newer and same.asset_url == ""
+    assert update.release_from_api({"tag_name": "v9.9.9", "draft": True}) is None
+    assert update.release_from_api({"tag_name": "v9.9.9", "prerelease": True}) is None
