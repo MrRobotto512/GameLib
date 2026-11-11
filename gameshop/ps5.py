@@ -5,12 +5,16 @@ from __future__ import annotations
 import ftplib
 import json
 import posixpath
+import io
 import socket
 import time
 import urllib.request
 import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable, Iterable
+
+from .paths import resource_dir
 
 FTP_PORT = 1337
 FTP_PORTS = (FTP_PORT, 2121)          # etaHEN's built-in FTP, then john-tornblom's ftpsrv.elf; 0 in settings = try these
@@ -19,6 +23,9 @@ DPI1_PORT = 9090
 ELF_PORT = 9021
 RA_PORT = 6769
 PARTIAL_SUFFIX = ".gameshop-partial"
+PAYLOAD_DIR = resource_dir() / "payloads"                    # built from ps5/ with the ps5-payload-sdk
+TILE_ID = "GMSH00001"                                         # the Game Shop tile's title id on the PS5
+URL_MARK = b"GAMESHOP_URL_PLACEHOLDER"                        # start of a 512-byte buffer in gameshop-open.elf
 BLOCK = 1 << 20
 
 
@@ -250,12 +257,34 @@ class PS5Client:
 
     # ---- ELF loader ----------------------------------------------------------------
     def send_elf(self, local: str, port: int = ELF_PORT) -> None:
-        with open(local, "rb") as fp, socket.create_connection((self.host, port), timeout=10) as s:
-            while True:
-                chunk = fp.read(BLOCK)
-                if not chunk:
-                    break
-                s.sendall(chunk)
+        with open(local, "rb") as fp:
+            self.send_bytes(fp.read(), port)
+
+    def send_bytes(self, data: bytes, port: int = ELF_PORT) -> None:
+        with socket.create_connection((self.host, port), timeout=10) as s:
+            s.sendall(data)
+
+    # ---- our two payloads ---------------------------------------------------------
+    def install_tile(self, url: str, icon: Path, title: str = "Game Shop") -> None:
+        """Put a Game Shop tile on the PS5 home screen: a web shortcut app (/user/app/<id>/sce_sys/
+        param.json whose deeplinkUri is the store's address, plus icon0.png) registered by the
+        gameshop-tile payload. Repeat to refresh the address."""
+        param = json.dumps({"titleId": TILE_ID, "applicationCategoryType": 65536, "deeplinkUri": url,
+                            "localizedParameters": {"defaultLanguage": "en-US", "en-US": {"titleName": title}}},
+                           indent=2) + "\n"
+        base = f"/user/app/{TILE_ID}/sce_sys"
+        with self.ftp() as f:
+            self.mkdirs(f, base)
+            f.voidcmd("TYPE I")
+            f.storbinary(f"STOR {base}/param.json", io.BytesIO(param.encode("utf-8")))
+            with open(icon, "rb") as fp:
+                f.storbinary(f"STOR {base}/icon0.png", fp)
+        self.send_bytes((PAYLOAD_DIR / "gameshop-tile.elf").read_bytes())
+
+    def open_browser(self, url: str) -> None:
+        """Open the PS5's web browser at url, by sending the gameshop-open payload with the url
+        written into its buffer."""
+        self.send_bytes(open_payload(url))
 
     # ---- RetroArch WebUI -----------------------------------------------------------
     def retroarch_refresh(self) -> bool:
@@ -265,6 +294,15 @@ class PS5Client:
             return True
         except OSError:
             return False
+
+
+def open_payload(url: str) -> bytes:
+    elf = (PAYLOAD_DIR / "gameshop-open.elf").read_bytes()
+    u = url.encode("utf-8")
+    if len(u) >= 512:
+        raise ValueError("url too long for the payload")
+    i = elf.index(URL_MARK)
+    return elf[:i] + u + b"\0" * (512 - len(u)) + elf[i + 512:]
 
 
 # ---- sources ---------------------------------------------------------------------------

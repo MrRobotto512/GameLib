@@ -35,6 +35,14 @@ The store opens at `http://127.0.0.1:8750/`. On the PS5's browser (or a phone) u
 the console prints at start-up, for example `http://192.168.1.20:8750/`; the PS5 browser switches
 to TV mode by itself.
 
+Nobody wants to type an address with a controller, so Settings has **Put a Game Shop tile on the
+PS5**: it writes a web-shortcut app (`/user/app/GMSH00001/sce_sys/param.json` + icon) over FTP and
+sends a small payload to the ELF loader that registers it, and a Game Shop tile appears on the home
+screen that opens the store in the PS5 browser. Press it again if this PC's address changes. **Open
+on the PS5 now** sends a second payload that opens the browser at the store straight away. The
+payloads are built from `ps5/` with john-tornblom's ps5-payload-sdk and committed under
+`gameshop/payloads/`.
+
 Allow the port through Windows Firewall once (needed for the PS5 browser and for PS4 installs,
 where the PS5 downloads the package from this PC). From an **administrator** PowerShell:
 

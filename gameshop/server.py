@@ -112,6 +112,10 @@ class Agent:
             self._health_at = time.time()
         return self._health
 
+    def store_url(self) -> str:
+        """The store's address as the PS5 reaches it."""
+        return f"http://{self.local_ip_for(self.config.ps5_host)}:{self.config.port}/"
+
     def dest_for(self, system_id: str) -> str:
         s = self.systems.get(system_id)
         return s.resolve_dest(self.config.ra_root, self.config.destinations) if s else ""
@@ -633,6 +637,33 @@ def create_app(agent: Agent | None = None) -> FastAPI:
             return {"ok": True}
         except (OSError, ftplib.Error) as e:
             raise HTTPException(502, f"FTP: {e}")
+
+    @app.post("/api/ps5/tile")
+    def ps5_tile():
+        """A Game Shop tile on the PS5 home screen (needs FTP and the ELF loader)."""
+        h = agent.health(refresh=True)
+        if not h.ftp or not h.elfldr:
+            raise HTTPException(400, "The PS5 needs FTP and the ELF loader (9021) up for this. Check its health above.")
+        url = agent.store_url()
+        try:
+            agent.client().install_tile(url, WEB / "tile-icon.png")
+        except (OSError, ftplib.Error) as e:
+            raise HTTPException(502, f"Could not add the tile: {e}") from e
+        print(f"[ps5] tile installed, opens {url}", flush=True)
+        return {"ok": True, "url": url}
+
+    @app.post("/api/ps5/open")
+    def ps5_open():
+        """Open the store in the PS5's browser now (needs the ELF loader)."""
+        h = agent.health(refresh=True)
+        if not h.elfldr:
+            raise HTTPException(400, "The PS5's ELF loader (9021) is not answering.")
+        url = agent.store_url()
+        try:
+            agent.client().open_browser(url)
+        except OSError as e:
+            raise HTTPException(502, f"Could not reach the ELF loader: {e}") from e
+        return {"ok": True, "url": url}
 
     @app.post("/api/ps5/scan")
     def ps5_scan(body: dict[str, Any] | None = None):
