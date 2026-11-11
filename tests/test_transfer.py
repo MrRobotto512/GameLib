@@ -57,3 +57,18 @@ def test_worker_runs_ftp_job(tmp_path: Path):
     assert j["state"] == "done", j
     assert j["done"] == j["total"] == cue.stat().st_size + binf.stat().st_size
     assert (remote_root / "data/homebrew/PPSA99169/content/psx/Game (USA).bin").stat().st_size == 500000
+
+
+def test_client_finds_the_ftp_port(tmp_path, monkeypatch):
+    """ps5_ftp_port 0: the first of FTP_PORTS that answers is used (etaHEN 1337, or ftpsrv.elf 2121)."""
+    from gameshop import ps5 as ps5mod
+    from tests.fakeps5 import free_port
+    (tmp_path / "ps5").mkdir()
+    with FakeFTP(tmp_path / "ps5") as ftp:
+        monkeypatch.setattr(ps5mod, "FTP_PORTS", (free_port(), ftp.port))
+        client = PS5Client("127.0.0.1")
+        assert client.find_ftp_port(timeout=0.5) == ftp.port
+        h = client.health()
+        assert h.ftp and h.ftp_port == ftp.port
+        assert client.listdir("/") is not None
+        assert not PS5Client("127.0.0.1", ftp_port=free_port()).health().ftp

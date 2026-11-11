@@ -1,4 +1,4 @@
-"""Talking to the PS5: etaHEN's FTP (1337), Direct Package Installer (12800 / 9090),
+"""Talking to the PS5: FTP (etaHEN's on 1337, or ftpsrv.elf on 2121), Direct Package Installer (12800 / 9090),
 the ELF loader (9021) and RetroArch's WebUI (6769). Nothing here is ours on the console."""
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Iterable
 
 FTP_PORT = 1337
+FTP_PORTS = (FTP_PORT, 2121)          # etaHEN's built-in FTP, then john-tornblom's ftpsrv.elf; 0 in settings = try these
 DPI2_PORT = 12800
 DPI1_PORT = 9090
 ELF_PORT = 9021
@@ -32,6 +33,7 @@ class RemoteEntry:
 class Health:
     host: str
     ftp: bool = False
+    ftp_port: int = 0                  # the port FTP answered on
     dpi2: bool = False
     dpi1: bool = False
     elfldr: bool = False
@@ -58,9 +60,18 @@ def _http_get(url: str, timeout: float = 3.0) -> str:
 
 
 class PS5Client:
-    def __init__(self, host: str, ftp_port: int = FTP_PORT):
+    def __init__(self, host: str, ftp_port: int = 0):
         self.host = host
-        self.ftp_port = ftp_port
+        self.ftp_port = ftp_port       # 0: whichever of FTP_PORTS answers
+
+    def find_ftp_port(self, timeout: float = 1.5) -> int:
+        """The FTP port to use: the configured one, else the first of FTP_PORTS that answers (0 if none)."""
+        if self.ftp_port:
+            return self.ftp_port if _tcp_open(self.host, self.ftp_port, timeout) else 0
+        for p in FTP_PORTS:
+            if _tcp_open(self.host, p, timeout):
+                return p
+        return 0
 
     # ---- health ---------------------------------------------------------------
     def health(self) -> Health:
@@ -68,7 +79,8 @@ class PS5Client:
         if not self.host:
             h.hints.append("Enter the PS5's address in Settings.")
             return h
-        h.ftp = _tcp_open(self.host, self.ftp_port)
+        h.ftp_port = self.find_ftp_port()
+        h.ftp = bool(h.ftp_port)
         h.elfldr = _tcp_open(self.host, ELF_PORT)
         h.dpi1 = _tcp_open(self.host, DPI1_PORT)
         if _tcp_open(self.host, DPI2_PORT):
@@ -82,7 +94,8 @@ class PS5Client:
             h.hints.append("Nothing answered. Is the PS5 on, jailbroken, and etaHEN loaded?")
         else:
             if not h.ftp:
-                h.hints.append("FTP (1337) is off: set FTP=1 in /data/etaHEN/config.ini.")
+                h.hints.append(f"FTP ({self.ftp_port}) is off." if self.ftp_port else
+                               "FTP is off: set FTP=1 in /data/etaHEN/config.ini (port 1337), or run ftpsrv.elf (port 2121).")
             if not (h.dpi2 or h.dpi1):
                 h.hints.append("Direct Package Installer is off: set DPI_v2=1 (or DPI=1) in /data/etaHEN/config.ini. Needed for PS4 packages only.")
             if not h.retroarch:
@@ -91,9 +104,12 @@ class PS5Client:
 
     # ---- FTP ----------------------------------------------------------------------
     def ftp(self, timeout: float = 20.0) -> ftplib.FTP:
+        port = self.ftp_port or self.find_ftp_port()
+        if not port:
+            raise OSError(f"no FTP server answered on {self.host} (ports {', '.join(map(str, FTP_PORTS))})")
         f = ftplib.FTP()
-        f.connect(self.host, self.ftp_port, timeout=timeout)
-        f.login()                  # etaHEN's FTP is anonymous
+        f.connect(self.host, port, timeout=timeout)
+        f.login()                  # both PS5 FTP servers are anonymous
         f.set_pasv(True)
         return f
 
@@ -164,7 +180,7 @@ class PS5Client:
             if got is not None and got != total:
                 raise IOError(f"size mismatch after copy: PS5 has {got} bytes, file is {total}")
             try:
-                f.delete(remote)
+                _dele(f, remote)
             except ftplib.error_perm:
                 pass
             f.rename(partial, remote)
@@ -175,7 +191,7 @@ class PS5Client:
             if is_dir:
                 _rmtree(f, path)
             else:
-                f.delete(path)
+                _dele(f, path)
 
     def free_space_hint(self) -> dict[str, int] | None:
         """etaHEN's FTP has no reliable free-space command; return None (the UI says 'unknown')."""
@@ -294,8 +310,9 @@ def open_source(spec: str):
 # ---- FTP helpers ---------------------------------------------------------------------
 def _listdir(f: ftplib.FTP, path: str) -> list[RemoteEntry]:
     entries: list[RemoteEntry] = []
+    f.cwd(path)              # ftpsrv.elf lists the current directory whatever path MLSD is given; a missing folder is a 550 here
     try:
-        for name, facts in f.mlsd(path):
+        for name, facts in f.mlsd():
             if name in (".", ".."):
                 continue
             entries.append(RemoteEntry(name, facts.get("type") == "dir", int(facts.get("size", 0) or 0)))
@@ -303,7 +320,7 @@ def _listdir(f: ftplib.FTP, path: str) -> list[RemoteEntry]:
     except (ftplib.error_perm, ftplib.error_temp):
         pass
     lines: list[str] = []
-    f.retrlines(f"LIST {path}", lines.append)
+    f.retrlines("LIST", lines.append)
     for ln in lines:
         parts = ln.split(None, 8)
         if len(parts) < 9:
@@ -321,11 +338,16 @@ def _rmtree(f: ftplib.FTP, path: str) -> None:
         if e.is_dir:
             _rmtree(f, full)
         else:
-            f.delete(full)
+            _dele(f, full)
     f.rmd(path)
 
 
-def scan_subnet(prefix: str, ports: Iterable[int] = (FTP_PORT, DPI2_PORT), timeout: float = 0.4) -> list[str]:
+def _dele(f: ftplib.FTP, path: str) -> None:
+    """DELE accepting any 2xx reply: ftpsrv.elf says 226, which ftplib's delete() refuses."""
+    f.voidcmd(f"DELE {path}")
+
+
+def scan_subnet(prefix: str, ports: Iterable[int] = FTP_PORTS + (DPI2_PORT,), timeout: float = 0.4) -> list[str]:
     """Find PS5s on a /24: hosts answering on any of the ports. prefix like '192.168.1'."""
     import concurrent.futures as cf
     found: list[str] = []

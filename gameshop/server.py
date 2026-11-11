@@ -90,7 +90,8 @@ class Agent:
         return self.store.config
 
     def client(self) -> PS5Client:
-        return PS5Client(self.config.ps5_host)
+        port = self.config.ps5_ftp_port or (self._health.ftp_port if self._health else 0)   # the port health found, so copies skip the probe
+        return PS5Client(self.config.ps5_host, port)
 
     def local_ip_for(self, remote: str) -> str:
         """The address of this PC as seen from the PS5 (the interface that routes to it)."""
@@ -107,7 +108,7 @@ class Agent:
 
     def health(self, refresh: bool = False) -> Health:
         if refresh or self._health is None or time.time() - self._health_at > 20:
-            self._health = self.client().health()
+            self._health = PS5Client(self.config.ps5_host, self.config.ps5_ftp_port).health()
             self._health_at = time.time()
         return self._health
 

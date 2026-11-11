@@ -21,7 +21,7 @@ button sends it to the folder chosen for that console in Settings. The look foll
 | Fact | Source | Consequence for the design |
 |---|---|---|
 | 13.60 is jailbroken by the browser-based **Relapse** exploit; the usual payload chain is kstuff → ShadowMount+ → etaHEN. Payloads vanish on reboot or rest mode and must be resent. | Relapse writeups, ps5upload FAQ | The PS5 side is *stateless*: nothing we install persists on the console. Lean on what etaHEN and the emulators already provide. |
-| **etaHEN** exposes on the PS5: FTP on **1337**, ELF loader on **9021**, Direct PKG Installer (DPI) v1 on **9090** (TCP, JSON `{"url": ...}` → `{"res": "0"}`), DPI **v2** HTTP on **12800** (`GET /` answers with a page containing "etaHEN"; `POST /upload` multipart with a `url` field → body contains `SUCCESS:`). | etaHEN README, DirectPackageInstaller source | We get an install API and a file-copy API for free. No PS5 payload of our own in version 1. |
+| **etaHEN** exposes on the PS5: FTP on **1337** (or john-tornblom's `ftpsrv.elf` on **2121**: it ignores the path given to MLSD and answers DELE/MKD/RMD with 226, so we CWD before listing and accept any 2xx), ELF loader on **9021**, Direct PKG Installer (DPI) v1 on **9090** (TCP, JSON `{"url": ...}` → `{"res": "0"}`), DPI **v2** HTTP on **12800** (`GET /` answers with a page containing "etaHEN"; `POST /upload` multipart with a `url` field → body contains `SUCCESS:`). | etaHEN README, DirectPackageInstaller source | We get an install API and a file-copy API for free. No PS5 payload of our own in version 1. |
 | **PS5 fake packages (PPSA…) install on 13.60 but do not launch.** PS4 fake packages (CUSA…) and PS5 homebrew apps work. | ps5upload README + FAQ | PS4 backups are the only native "install" route. PS5 titles are out of scope unless they are game images for ShadowMount+ (kept as a secondary route). |
 | **Retro systems run in emulators that are PS5 homebrew titles under `/data/homebrew/<PPSA…>/`.** The big one is Mihawk's **RetroArch port**: 33 cores (PS1, PS2 via PS5SX2, PSP, N64, GameCube/Wii, every Sega system, arcade, Atari, …), content under `content/<system>/` using EmulationStation (ES-DE) folder names, BIOS under `system/`, a **WebUI on port 6769** with upload/library/forwarder APIs, and built-in **SMB** browsing of one share. Other emulators are separate titles: **PS5SX2** standalone (PS2, `/data/PCSX2/games/`), **ProsperoEden** (Switch, alpha, slow), **XPSemu** (original Xbox), a Xenia (Xbox 360) demo with no public build, RPCS3 (PS3) experimental. | PS5_RetroArch README/source, news coverage | The core job is **"put this file in that emulator's folder."** Destinations are fixed per emulator, so Game Shop ships a table of them and you only choose which of your folders feed which system. |
 | **ps5upload** (GPL‑3) already does the PS4/PS5 package and image work on 13.60. | references/ps5upload | Game Shop does not compete with it; it fills the retro, multi-PC, couch gap. |
@@ -268,7 +268,7 @@ avoids copying altogether; big disc images still copy.
 
 ## 7. PS5 connection model
 
-- Enter the PS5's IP once, or **Scan** the subnet for `:1337` FTP and `:12800` "etaHEN".
+- Enter the PS5's IP once, or **Scan** the subnet for `:1337`/`:2121` FTP and `:12800` "etaHEN".
 - Health panel: FTP / DPI v2 / DPI v1 / elfldr / RetroArch WebUI, each with a one-line fix hint
   (e.g. "set `DPI_v2=1` in `/data/etaHEN/config.ini`").
 - No pairing or encryption; etaHEN's own services are plain FTP/HTTP on your LAN. The agent

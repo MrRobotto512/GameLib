@@ -344,8 +344,8 @@
     var cfg = state.app.config, h = state.app.ps5;
     function hl(ok, label) { return '<li><span class="' + (ok ? 'ok' : 'bad') + '">' + (ok ? '●' : '○') + '</span> ' + label + '</li>'; }
     var html = '<h1>Settings</h1><div class="grid-2">' +
-      '<div class="card form"><h2 style="margin-top:0">PS5</h2><label>Address</label><div class="inline"><input id="ps5-host" value="' + esc(cfg.ps5_host) + '" placeholder="192.168.1.50"><button class="btn small" id="ps5-save" data-nav>Save</button><button class="btn small" id="ps5-scan" data-nav>Scan network</button></div>' +
-      '<div class="health"><ul>' + hl(h.ftp, 'FTP (1337) — copies files') + hl(h.dpi2 || h.dpi1, 'Direct Package Installer (' + (h.dpi2 ? '12800' : h.dpi1 ? '9090' : 'off') + ') — PS4 packages') + hl(h.elfldr, 'ELF loader (9021) — payloads') + hl(h.retroarch, 'RetroArch WebUI (6769)') + '</ul>' +
+      '<div class="card form"><h2 style="margin-top:0">PS5</h2><label>Address</label><div class="inline"><input id="ps5-host" value="' + esc(cfg.ps5_host) + '" placeholder="192.168.1.50"><input id="ps5-ftp-port" value="' + (cfg.ps5_ftp_port || '') + '" placeholder="FTP port: auto" title="Leave empty to try etaHEN\'s FTP (1337) and ftpsrv.elf (2121)" style="width:120px;flex:0 0 auto"><button class="btn small" id="ps5-save" data-nav>Save</button><button class="btn small" id="ps5-scan" data-nav>Scan network</button></div>' +
+      '<div class="health"><ul>' + hl(h.ftp, 'FTP (' + (h.ftp_port || cfg.ps5_ftp_port || '1337 or 2121') + ') — copies files') + hl(h.dpi2 || h.dpi1, 'Direct Package Installer (' + (h.dpi2 ? '12800' : h.dpi1 ? '9090' : 'off') + ') — PS4 packages') + hl(h.elfldr, 'ELF loader (9021) — payloads') + hl(h.retroarch, 'RetroArch WebUI (6769)') + '</ul>' +
       (h.hints || []).map(function (x) { return '<div class="note">' + esc(x) + '</div>'; }).join('') + '</div>' +
       '<label>RetroArch title folder on the PS5</label><input id="ra-root" value="' + esc(cfg.ra_root) + '">' +
       '<label><input type="checkbox" id="skip" ' + (cfg.skip_existing ? 'checked' : '') + ' style="width:auto"> Skip files already on the PS5 with the same size</label>' +
@@ -388,7 +388,7 @@
     view.innerHTML = html;
     $('#view-sel').addEventListener('change', function () { setView(this.value); });
 
-    $('#ps5-save').addEventListener('click', function () { api('/api/config', { method: 'PUT', body: { ps5_host: $('#ps5-host').value.trim() } }).then(function () { toast('Saved'); return loadState(true); }).then(render); });
+    $('#ps5-save').addEventListener('click', function () { api('/api/config', { method: 'PUT', body: { ps5_host: $('#ps5-host').value.trim(), ps5_ftp_port: parseInt($('#ps5-ftp-port').value, 10) || 0 } }).then(function () { toast('Saved'); return loadState(true); }).then(render); });
     $('#ps5-scan').addEventListener('click', function () { toast('Scanning the network…', 8000); api('/api/ps5/scan', { method: 'POST', body: {} }).then(function (r) { if (!r.found.length) return toast('No PS5 answered on ' + r.prefix + '.x'); $('#ps5-host').value = r.found[0]; toast('Found ' + r.found.join(', ')); }); });
     $('#opts-save').addEventListener('click', function () { api('/api/config', { method: 'PUT', body: { ra_root: $('#ra-root').value.trim(), skip_existing: $('#skip').checked, art_enabled: $('#art').checked } }).then(function () { toast('Saved'); return loadState(); }).then(render); });
     $('#dest-save').addEventListener('click', function () { var d = {}; $$('[data-dest]').forEach(function (i) { if (i.value.trim()) d[i.dataset.dest] = i.value.trim(); }); api('/api/config', { method: 'PUT', body: { destinations: d } }).then(function () { toast('Saved'); return loadState(); }).then(render); });

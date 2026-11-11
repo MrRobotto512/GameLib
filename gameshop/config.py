@@ -27,6 +27,7 @@ class Config:
     bind: str = "0.0.0.0"
     name: str = ""                       # this agent's display name (defaults to the hostname)
     ps5_host: str = ""
+    ps5_ftp_port: int = 0                # 0 = find it (etaHEN's FTP on 1337, or ftpsrv.elf on 2121)
     ra_root: str = "/data/homebrew/PPSA99169"
     destinations: dict[str, str] = field(default_factory=dict)   # system id -> PS5 folder override
     sources: list[Source] = field(default_factory=list)
