@@ -24,7 +24,9 @@ ELF_PORT = 9021
 RA_PORT = 6769
 PARTIAL_SUFFIX = ".gameshop-partial"
 PAYLOAD_DIR = resource_dir() / "payloads"                    # built from ps5/ with the ps5-payload-sdk
-TILE_ID = "GMSH00001"                                         # the Game Shop tile's title id on the PS5
+TILE_ID = "PPSA87500"                                         # the Game Shop tile app's title id on the PS5
+TILE_APP = resource_dir() / "ps5app" / TILE_ID                # built from ps5/app/ with the app kit
+TILE_FILES = ("sce_module/libc.prx", "sce_sys/param.json", "sce_sys/icon0.png", "eboot.bin")
 URL_MARK = b"GAMESHOP_URL_PLACEHOLDER"                        # start of a 512-byte buffer in gameshop-open.elf
 BLOCK = 1 << 20
 
@@ -264,22 +266,20 @@ class PS5Client:
         with socket.create_connection((self.host, port), timeout=10) as s:
             s.sendall(data)
 
-    # ---- our two payloads ---------------------------------------------------------
-    def install_tile(self, url: str, icon: Path, title: str = "Game Shop") -> None:
-        """Put a Game Shop tile on the PS5 home screen: a web shortcut app (/user/app/<id>/sce_sys/
-        param.json whose deeplinkUri is the store's address, plus icon0.png) registered by the
-        gameshop-tile payload. Repeat to refresh the address."""
-        param = json.dumps({"titleId": TILE_ID, "applicationCategoryType": 65536, "deeplinkUri": url,
-                            "localizedParameters": {"defaultLanguage": "en-US", "en-US": {"titleName": title}}},
-                           indent=2) + "\n"
-        base = f"/user/app/{TILE_ID}/sce_sys"
+    # ---- the Game Shop tile and the open payload -----------------------------------
+    def install_tile(self, url: str) -> None:
+        """Put a Game Shop tile on the PS5 home screen: copy the tile app (gameshop/ps5app/<id>/) to
+        /data/homebrew/<id>/, where Shadow Mount+ registers it on its next scan, with the store's
+        address in url.txt beside the eboot. Repeat to refresh the address."""
+        base = f"/data/homebrew/{TILE_ID}"
         with self.ftp() as f:
-            self.mkdirs(f, base)
+            self.mkdirs(f, base + "/sce_module")
+            self.mkdirs(f, base + "/sce_sys")
             f.voidcmd("TYPE I")
-            f.storbinary(f"STOR {base}/param.json", io.BytesIO(param.encode("utf-8")))
-            with open(icon, "rb") as fp:
-                f.storbinary(f"STOR {base}/icon0.png", fp)
-        self.send_bytes((PAYLOAD_DIR / "gameshop-tile.elf").read_bytes())
+            f.storbinary(f"STOR {base}/url.txt", io.BytesIO((url + "\n").encode("utf-8")))
+            for rel in TILE_FILES:           # the eboot last: Shadow Mount+ looks for it
+                with open(TILE_APP / rel, "rb") as fp:
+                    f.storbinary(f"STOR {base}/{rel}", fp)
 
     def open_browser(self, url: str) -> None:
         """Open the PS5's web browser at url, by sending the gameshop-open payload with the url

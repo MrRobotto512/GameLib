@@ -9,6 +9,7 @@ Push-Location $root
     --add-data "gameshop\systems.toml;gameshop" `
     --add-data "gameshop\web;gameshop\web" `
     --add-data "gameshop\payloads;gameshop\payloads" `
+    --add-data "gameshop\ps5app;gameshop\ps5app" `
     --hidden-import pystray._win32 `
     --collect-submodules uvicorn `
     gameshop\launcher.py

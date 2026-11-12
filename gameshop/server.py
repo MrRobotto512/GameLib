@@ -640,13 +640,13 @@ def create_app(agent: Agent | None = None) -> FastAPI:
 
     @app.post("/api/ps5/tile")
     def ps5_tile():
-        """A Game Shop tile on the PS5 home screen (needs FTP and the ELF loader)."""
+        """A Game Shop tile on the PS5 home screen (needs FTP; Shadow Mount+ adds the tile)."""
         h = agent.health(refresh=True)
-        if not h.ftp or not h.elfldr:
-            raise HTTPException(400, "The PS5 needs FTP and the ELF loader (9021) up for this. Check its health above.")
+        if not h.ftp:
+            raise HTTPException(400, "The PS5's FTP is not answering. Check its health above.")
         url = agent.store_url()
         try:
-            agent.client().install_tile(url, WEB / "tile-icon.png")
+            agent.client().install_tile(url)
         except (OSError, ftplib.Error) as e:
             raise HTTPException(502, f"Could not add the tile: {e}") from e
         print(f"[ps5] tile installed, opens {url}", flush=True)
