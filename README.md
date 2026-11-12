@@ -14,8 +14,13 @@ tiles**, an SMB "play in place" helper, a **tray app**, a one-file **GameShop.ex
 
 ## Run it
 
-**Easiest:** build or download `GameShop.exe` (see *One-file build* below), double-click it, and use
-the tray icon (gold diamond) to open the store. Everything it keeps lives in `%LOCALAPPDATA%\GameShop`.
+**Easiest:** download `GameShopSetup.exe` from the
+[latest release](https://github.com/MrRobotto512/GameLib/releases/latest) and run it. It installs
+Game Shop into `C:\Program Files\Game Shop`, adds it to the Start menu, starts it when you sign in
+(a choice in the setup), allows it through Windows Firewall, and can be removed from
+*Settings → Apps*. Use the tray icon (gold diamond) to open the store. Everything it keeps lives in
+`%LOCALAPPDATA%\GameShop`, which neither updates nor uninstalling touch. `GameShop.exe` on its own
+still runs from any folder if you'd rather not install it.
 
 **From source:** Windows with Python 3.11+ (3.13 tested). On the PS5: the jailbreak chain you already
 use (kstuff, ShadowMount+, etaHEN) with etaHEN's FTP on, and Mihawk's RetroArch port for retro
@@ -55,8 +60,9 @@ HTTP code come from FLEX's PS5 app. It is linked and fake-signed with the native
 also supplies the clean-room `sce_module/libc.prx`); set it up once with FLEX's
 `ps5-client/tools/setup-app-kit.sh`. It uses cJSON (MIT) and the DejaVu fonts.
 
-Allow the port through Windows Firewall once (needed for the PS5 browser and for PS4 installs,
-where the PS5 downloads the package from this PC). From an **administrator** PowerShell:
+The setup allows Game Shop through Windows Firewall (needed for the PS5 and for PS4 installs,
+where the PS5 downloads the package from this PC). Running from source or a loose `GameShop.exe`,
+allow the port once from an **administrator** PowerShell:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\firewall.ps1
@@ -84,20 +90,26 @@ powershell -ExecutionPolicy Bypass -File tools\firewall.ps1
 6. **Payloads**: add kstuff, ShadowMount+ and etaHEN in order under **Settings → Payloads** with a
    wait between them; **Load the chain** sends them after a reboot.
 
-## One-file build, tray and autostart
+## Setup, one-file build, tray and autostart
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\build.ps1
 ```
 
-makes `dist\GameShop.exe` (PyInstaller, about 25 MB). Double-clicking it runs the tray app;
-`GameShop.exe --console` keeps a console window for logs, and `--port`, `--data`, `--open` work as
-with `python -m gameshop`. From source, `python -m gameshop --tray` is the same tray app.
+makes `dist\GameShop.exe` (PyInstaller, about 30 MB) and, when
+[Inno Setup 6](https://jrsoftware.org/isinfo.php) is installed, `dist\GameShopSetup.exe` from
+`tools\installer.iss`. Double-clicking the exe runs the tray app; `GameShop.exe --console` keeps a
+console window for logs, and `--port`, `--data`, `--open` work as with `python -m gameshop`. From
+source, `python -m gameshop --tray` is the same tray app.
 
-**Updating:** the tray menu has *Check for updates*. It asks GitHub for the latest release, and when
-there is a newer `GameShop.exe` it downloads it next to the running one, swaps the files and
-restarts with the same arguments. The exe also checks once, quietly, about 20 seconds after it
-starts and shows a notification when something newer exists. From source, update with `git pull`.
+**Updating:** the tray menu has *Check for updates*. It asks GitHub for the latest release and, when
+it is newer, downloads its `GameShopSetup.exe` and runs it: Windows asks to allow it, the setup
+closes Game Shop, installs over it and starts the new version. A loose `GameShop.exe` (in
+Downloads, say) updates the same way, so it ends up installed in Program Files. The exe also checks
+once, quietly, about 20 seconds after it starts and shows a notification when something newer
+exists. From source, update with `git pull`.
+
+The setup's *start when I sign in* uses the `Run` key and replaces the logon task below.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\install-autostart.ps1

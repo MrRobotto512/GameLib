@@ -91,10 +91,10 @@ class Updater:
                 _say(f"Game Shop v{rel.version} is available (you have v{__version__}).\n\n"
                      f"You are running from source: update with  git pull  and restart.\n\n{rel.url}")
                 return
-            if not rel.asset_url:
+            if not rel.asset_url and not rel.setup_url:
                 _say(f"Game Shop v{rel.version} is available but has no GameShop.exe attached yet.\n{rel.url}")
                 return
-            size_mb = rel.asset_size / 1e6
+            size_mb = update.download_size(rel) / 1e6
             if not _ask(f"Game Shop v{rel.version} is available (you have v{__version__}).\n\n{summary}\n\n"
                         f"Download {size_mb:.0f} MB and restart now?"):
                 return
@@ -108,9 +108,15 @@ class Updater:
                 self.status = f"Downloading update… {pct}%"
                 self._refresh()
             new_exe = update.download(rel, prog)
-            _log(f"downloaded {new_exe} ({new_exe.stat().st_size} bytes); swapping and restarting")
             self.status = "Restarting…"
             self._refresh()
+            if update.uses_setup(rel):
+                _log(f"downloaded {new_exe} ({new_exe.stat().st_size} bytes); running it")
+                self._notify(f"Installing v{rel.version}. Allow the setup to make changes when Windows asks; "
+                             "Game Shop comes back when it is done.")
+                update.run_setup_and_exit(new_exe)
+                return
+            _log(f"downloaded {new_exe} ({new_exe.stat().st_size} bytes); swapping and restarting")
             self._notify(f"Installing v{rel.version}. Game Shop closes and comes back in a few seconds.")
             update.apply_and_restart(new_exe)
         except Exception as exc:   # noqa: BLE001
