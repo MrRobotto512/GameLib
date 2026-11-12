@@ -78,7 +78,12 @@ a copy that starts on a busy port asks the Game Shop holding it to quit (`POST /
 loopback callers only, `single.py`) and waits for the port, so double-clicking a newer exe
 next to the running one, or the self-update's restart racing the old copy's exit, ends with
 the new copy serving rather than a tray icon that serves nothing. The tray updater logs each
-step to `gameshop.log` and the swap script to `%TEMP%\gameshop-update.log`.
+step to `gameshop.log` and the swap script to `%TEMP%\gameshop-update.log`. Releases carry
+`GameShopSetup.exe` (Inno Setup, `tools/installer.iss`), which installs into Program Files with a
+firewall rule for that one path; the updater runs it with `/SILENT` and exits, and the setup
+quits any running copy the same way (`/api/quit`, then `taskkill`). Anything the updater starts
+gets an environment without PyInstaller's `_PYI_*` variables, or the new one-file exe would look
+for Python in the old copy's deleted temp folder.
 
 - **Sources and index.** A *source* is a folder you add by hand, tagged with a system (or
   "mixed / pick per item"). The indexer lists files under each source, groups multi-file games
@@ -322,7 +327,7 @@ avoids copying altogether; big disc images still copy.
 
 **Phase 3 — polish** (built 2026-10-31)
 - Game facts from libretro-database `.rdb` files (year, developer, publisher, genre, players, serial), fetched per system by the PC and cached; shown on tiles, the hero and product pages.
-- Tray app (`--tray`), one-file `GameShop.exe` (PyInstaller), logon autostart script.
+- Tray app (`--tray`), one-file `GameShop.exe` (PyInstaller), `GameShopSetup.exe` (Inno Setup), logon autostart.
 - TV mode restyled after ProsperoStore's native screens: landscape tiles with centred art, larger hero, section hints next to the tabs, controller legend.
 
 **Deferred (decided 2026-10-31, because the collection is retro-first)**

@@ -30,3 +30,20 @@ def test_swap_script_waits_moves_and_restarts():
     assert 'start "" /d "C:\\x" "C:\\x\\GameShop.exe" "--port" "8750"' in s
     assert "goto giveup" in s and "gameshop-update.log" in s            # a failed swap leaves a trace
     assert s.endswith('del "%~f0"\r\n')
+
+
+def test_release_with_a_setup_updates_through_it():
+    data = {"tag_name": "v9.0.0", "assets": [
+        {"name": "GameShop.exe", "browser_download_url": "https://example/GameShop.exe", "size": 29000000},
+        {"name": "GameShopSetup.exe", "browser_download_url": "https://example/GameShopSetup.exe", "size": 30000000}]}
+    rel = update.release_from_api(data)
+    assert rel.setup_url == "https://example/GameShopSetup.exe" and update.uses_setup(rel)
+    assert update.download_size(rel) == 30000000
+    old = update.release_from_api({"tag_name": "v9.0.0", "assets": data["assets"][:1]})
+    assert not update.uses_setup(old) and update.download_size(old) == 29000000
+
+
+def test_children_do_not_inherit_pyinstallers_environment():
+    env = update.child_env({"PATH": "C:\Windows", "_PYI_APPLICATION_HOME_DIR": "C:\Temp\_MEI123",
+                            "_PYI_PARENT_PROCESS_LEVEL": "1", "_MEIPASS2": "C:\Temp\_MEI123"})
+    assert env == {"PATH": "C:\Windows", "PYINSTALLER_RESET_ENVIRONMENT": "1"}
