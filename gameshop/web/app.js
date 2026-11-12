@@ -345,7 +345,8 @@
     function hl(ok, label) { return '<li><span class="' + (ok ? 'ok' : 'bad') + '">' + (ok ? '●' : '○') + '</span> ' + label + '</li>'; }
     var html = '<h1>Settings</h1><div class="grid-2">' +
       '<div class="card form"><h2 style="margin-top:0">PS5</h2><label>Address</label><div class="inline"><input id="ps5-host" value="' + esc(cfg.ps5_host) + '" placeholder="192.168.1.50"><input id="ps5-ftp-port" value="' + (cfg.ps5_ftp_port || '') + '" placeholder="FTP port: auto" title="Leave empty to try etaHEN\'s FTP (1337) and ftpsrv.elf (2121)" style="width:120px;flex:0 0 auto"><button class="btn small" id="ps5-save" data-nav>Save</button><button class="btn small" id="ps5-scan" data-nav>Scan network</button></div>' +
-      '<div class="health"><ul>' + hl(h.ftp, 'FTP (' + (h.ftp_port || cfg.ps5_ftp_port || '1337 or 2121') + ') — copies files') + hl(h.dpi2 || h.dpi1, 'Direct Package Installer (' + (h.dpi2 ? '12800' : h.dpi1 ? '9090' : 'off') + ') — PS4 packages') + hl(h.elfldr, 'ELF loader (9021) — payloads') + hl(h.retroarch, 'RetroArch WebUI (6769)') + '</ul>' +
+      '<div class="health"><ul>' + hl(h.ftp, 'FTP (' + (h.ftp_port || cfg.ps5_ftp_port || '1337 or 2121') + ') — copies files') + hl(h.dpi2 || h.dpi1, 'Direct Package Installer (' + (h.dpi2 ? '12800' : h.dpi1 ? '9090' : 'off') + ') — PS4 packages' +
+        (h.dpi_setting ? ' <button class="btn small" id="dpi-toggle" data-on="' + (h.dpi_setting === 'on' ? 0 : 1) + '" data-nav title="Changes the setting in etaHEN\'s config on the PS5">' + (h.dpi_setting === 'on' ? 'Turn off' : 'Turn on') + '</button>' : '')) + hl(h.elfldr, 'ELF loader (9021) — payloads') + hl(h.retroarch, 'RetroArch WebUI (6769)') + '</ul>' +
       (h.hints || []).map(function (x) { return '<div class="note">' + esc(x) + '</div>'; }).join('') + '</div>' +
       '<div class="inline" style="margin-top:10px"><button class="btn small gold" id="ps5-tile" data-nav>Put a Game Shop tile on the PS5</button><button class="btn small" id="ps5-open" data-nav>Open on the PS5 now</button></div>' +
       '<div class="note">Copies the Game Shop app to the PS5; its tile opens this store full screen, talking to ' + esc(state.app.lan_ip ? 'http://' + state.app.lan_ip + ':' + cfg.port + '/' : 'this PC') + ' (needs Shadow Mount+ on the PS5). Press it again after updating Game Shop or if this PC\'s address changes.</div>' +
@@ -392,6 +393,14 @@
 
     $('#ps5-save').addEventListener('click', function () { api('/api/config', { method: 'PUT', body: { ps5_host: $('#ps5-host').value.trim(), ps5_ftp_port: parseInt($('#ps5-ftp-port').value, 10) || 0 } }).then(function () { toast('Saved'); return loadState(true); }).then(render); });
     $('#ps5-tile').addEventListener('click', function () { toast('Copying the Game Shop app…', 6000); api('/api/ps5/tile', { method: 'POST' }).then(function (r) { toast('Copied. Game Shop appears on the PS5 home screen within about 15 seconds, once no game is open (it opens ' + r.url + ').', 9000); }).catch(function (e) { toast(e.message, 8000); }); });
+    var dpiBtn = $('#dpi-toggle');
+    if (dpiBtn) dpiBtn.addEventListener('click', function () {
+      var on = dpiBtn.dataset.on === '1';
+      api('/api/ps5/etahen/dpi', { method: 'POST', body: { on: on } }).then(function () {
+        toast((on ? 'Turned on' : 'Turned off') + ' in etaHEN\'s settings. It takes effect the next time etaHEN loads (restart the PS5 and run your jailbreak).', 9000);
+        return loadState(true);
+      }).then(render).catch(function (e) { toast(e.message, 8000); });
+    });
     $('#ps5-open').addEventListener('click', function () { api('/api/ps5/open', { method: 'POST' }).then(function (r) { toast('Opening ' + r.url + ' on the PS5.'); }).catch(function (e) { toast(e.message, 8000); }); });
     $('#ps5-scan').addEventListener('click', function () { toast('Scanning the network…', 8000); api('/api/ps5/scan', { method: 'POST', body: {} }).then(function (r) { if (!r.found.length) return toast('No PS5 answered on ' + r.prefix + '.x'); $('#ps5-host').value = r.found[0]; toast('Found ' + r.found.join(', ')); }); });
     $('#opts-save').addEventListener('click', function () { api('/api/config', { method: 'PUT', body: { ra_root: $('#ra-root').value.trim(), skip_existing: $('#skip').checked, art_enabled: $('#art').checked } }).then(function () { toast('Saved'); return loadState(); }).then(render); });

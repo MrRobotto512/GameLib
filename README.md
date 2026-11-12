@@ -71,7 +71,10 @@ powershell -ExecutionPolicy Bypass -File tools\firewall.ps1
 ## First-time setup, in the store
 
 1. **Settings → PS5**: enter the console's address (or **Scan network**). The health list shows
-   FTP, Direct Package Installer, ELF loader and RetroArch's WebUI, each with a fix hint.
+   FTP, Direct Package Installer, ELF loader and RetroArch's WebUI, each with a fix hint. The
+   Direct Package Installer (needed for PS4 packages) has a **Turn on** button: it sets `DPI_v2=1`
+   in etaHEN's config on the PS5 over FTP (`config.ini`, and `config-multifw-experimental.ini` for
+   the multi-firmware builds), which etaHEN picks up the next time it loads.
 2. **Settings → Sources**: add a folder of backups and say which console is in it. Repeat per
    console. "Mixed" tells the console by file type and, where several share one, by what is
    inside the file (an ISO is read far enough to tell PS2 from PSX, PSP, PS3, GameCube, Wii

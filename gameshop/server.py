@@ -630,6 +630,19 @@ def create_app(agent: Agent | None = None) -> FastAPI:
     def ps5_health(refresh: int = 1):
         return health_dict(agent.health(refresh=bool(refresh)))
 
+    @app.post("/api/ps5/etahen/dpi")
+    def ps5_etahen_dpi(body: dict[str, Any] | None = None):
+        """Turn etaHEN's Direct Package Installer on (v2, port 12800) or off in its settings on the PS5."""
+        on = bool((body or {}).get("on", True))
+        try:
+            files = agent.client().set_etahen({"DPI_v2": 1} if on else {"DPI_v2": 0, "DPI": 0})
+        except FileNotFoundError as e:
+            raise HTTPException(404, str(e))
+        except (OSError, ftplib.Error) as e:
+            raise HTTPException(502, f"FTP: {e}")
+        agent._health = None
+        return {"on": on, "files": files}
+
     @app.get("/api/ps5/ls")
     def ps5_ls(path: str = "/"):
         try:
