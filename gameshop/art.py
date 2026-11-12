@@ -8,6 +8,7 @@ miss): GameTDB for the consoles libretro lacks, serial-keyed PS1 / PS2 covers, p
 """
 from __future__ import annotations
 
+import os
 import re
 import threading
 import time
@@ -90,6 +91,26 @@ class ArtCache:
 
     def path_for(self, item_id: str, kind: str = "box") -> Path:
         return self.dir / (f"{item_id}.png" if kind == "box" else f"{item_id}.{kind}.png")
+
+    def thumb(self, src: Path, width: int) -> Path:
+        """src scaled down to width pixels as a JPEG (the PS5 app's grid: a full cover is ~0.5 MB of
+        PNG), made once and kept beside the art. src itself when it is already that narrow."""
+        out = self.dir / "thumbs" / f"{src.stem}.w{width}.jpg"
+        if out.exists() and out.stat().st_mtime >= src.stat().st_mtime:
+            return out
+        from PIL import Image
+        with Image.open(src) as im:
+            if im.width <= width:
+                return src
+            im = im.convert("RGBA")
+            flat = Image.new("RGB", im.size, (20, 20, 20))         # transparent corners on the card colour
+            flat.paste(im, mask=im.getchannel("A"))
+            flat = flat.resize((width, max(1, round(im.height * width / im.width))), Image.LANCZOS)
+        out.parent.mkdir(exist_ok=True)
+        tmp = out.with_suffix(f".{threading.get_ident()}.part")
+        flat.save(tmp, "JPEG", quality=85)
+        os.replace(tmp, out)
+        return out
 
     def get(self, item: dict[str, Any], fetch: bool = True, kind: str = "box") -> Path | None:
         """Cached image path, fetching it now when allowed. None when there is none."""

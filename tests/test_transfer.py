@@ -107,7 +107,8 @@ def test_tile_app_and_open_payload(tmp_path):
         time.sleep(0.1)
     base = tmp_path / "ps5" / "data" / "homebrew" / ps5mod.TILE_ID
     assert (base / "url.txt").read_text() == "http://10.0.0.3:8750/\n"
-    for rel in ps5mod.TILE_FILES:
+    assert ps5mod.tile_files()[-1] == "eboot.bin" and "assets/DejaVuSans.ttf" in ps5mod.tile_files()
+    for rel in ps5mod.tile_files():
         assert (base / rel).read_bytes() == (ps5mod.TILE_APP / rel).read_bytes()
     param = json.loads((base / "sce_sys" / "param.json").read_text())
     assert param["titleId"] == ps5mod.TILE_ID and ps5mod.TILE_ID[:4] in ("PPSA", "CUSA", "LAPY", "FAKE")
