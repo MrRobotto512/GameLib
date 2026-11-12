@@ -116,3 +116,38 @@ def test_tile_app_and_open_payload(tmp_path):
     assert len(got) == 1                                # only the open payload went to the ELF loader
     assert ps5mod.URL_MARK not in got[0] and b"http://10.0.0.2:8750/\0" in got[0]
     assert len(got[0]) == (ps5mod.PAYLOAD_DIR / "gameshop-open.elf").stat().st_size
+
+
+def test_ini_set_keeps_the_rest_of_etahens_config():
+    from gameshop.ps5 import ini_set, ini_values
+    text = "[Settings]\r\nFTP=1\r\nDPI=0\r\nDPI_v2=0\r\n"
+    out = ini_set(text, "DPI_v2", "1")
+    assert out == "[Settings]\r\nFTP=1\r\nDPI=0\r\nDPI_v2=1\r\n"
+    assert ini_values(out) == {"FTP": "1", "DPI": "0", "DPI_v2": "1"}
+    assert ini_set("[Settings]\nFTP=1", "DPI_v2", "1") == "[Settings]\nDPI_v2=1\nFTP=1"     # missing: added under [Settings]
+    assert ini_set("FTP=1", "DPI_v2", "1") == "FTP=1\nDPI_v2=1\n"
+
+
+def test_dpi_toggle_writes_every_etahen_config(tmp_path, monkeypatch):
+    """The health check reads DPI from etaHEN's config (the multi-firmware build's file too), and
+    set_etahen turns it on in each file that exists."""
+    from gameshop import ps5 as ps5mod
+    etahen = tmp_path / "ps5/data/etaHEN"
+    etahen.mkdir(parents=True)
+    (etahen / "config-multifw-experimental.ini").write_bytes(b"[Settings]\r\nFTP=0\r\nDPI=0\r\nDPI_v2=0\r\n")
+    with FakeFTP(tmp_path / "ps5") as ftp:
+        monkeypatch.setattr(ps5mod, "FTP_PORTS", (ftp.port,))
+        client = PS5Client("127.0.0.1", ftp_port=ftp.port)
+        h = client.health()
+        assert h.dpi_setting == "off" and h.etahen_config.endswith("config-multifw-experimental.ini")
+        assert any("off in etaHEN's settings (config-multifw-experimental.ini)" in x for x in h.hints)
+        assert client.set_etahen({"DPI_v2": 1}) == ["/data/etaHEN/config-multifw-experimental.ini"]
+        assert (etahen / "config-multifw-experimental.ini").read_bytes() == b"[Settings]\r\nFTP=0\r\nDPI=0\r\nDPI_v2=1\r\n"
+        h = client.health()
+        assert h.dpi_setting == "on" and any("load etaHEN again" in x for x in h.hints)
+    (etahen / "config-multifw-experimental.ini").unlink()
+    with FakeFTP(tmp_path / "ps5") as ftp:
+        client = PS5Client("127.0.0.1", ftp_port=ftp.port)
+        import pytest
+        with pytest.raises(FileNotFoundError):
+            client.set_etahen({"DPI_v2": 1})

@@ -22,6 +22,9 @@ DPI2_PORT = 12800
 DPI1_PORT = 9090
 ELF_PORT = 9021
 RA_PORT = 6769
+ETAHEN_DIR = "/data/etaHEN"
+# etaHEN reads config.ini; its multi-firmware experimental builds read a file of their own.
+ETAHEN_CONFIGS = ("config.ini", "config-multifw-experimental.ini")
 PARTIAL_SUFFIX = ".gameshop-partial"
 PAYLOAD_DIR = resource_dir() / "payloads"                    # built from ps5/ with the ps5-payload-sdk
 TILE_ID = "PPSA87500"                                         # the Game Shop tile app's title id on the PS5
@@ -46,6 +49,8 @@ class Health:
     dpi1: bool = False
     elfldr: bool = False
     retroarch: bool = False
+    dpi_setting: str = ""              # "on" / "off" in etaHEN's config on the PS5, "" when it could not be read
+    etahen_config: str = ""            # the config file that was read
     checked: float = field(default_factory=time.time)
     hints: list[str] = field(default_factory=list)
 
@@ -104,11 +109,65 @@ class PS5Client:
             if not h.ftp:
                 h.hints.append(f"FTP ({self.ftp_port}) is off." if self.ftp_port else
                                "FTP is off: set FTP=1 in /data/etaHEN/config.ini (port 1337), or run ftpsrv.elf (port 2121).")
+            if h.ftp:
+                try:
+                    configs = self.etahen_configs()
+                except (OSError, ftplib.Error):
+                    configs = {}
+                if configs:
+                    path, text = next(iter(configs.items()))
+                    vals = ini_values(text)
+                    h.etahen_config = path
+                    h.dpi_setting = "on" if vals.get("DPI_v2") == "1" or vals.get("DPI") == "1" else "off"
             if not (h.dpi2 or h.dpi1):
-                h.hints.append("Direct Package Installer is off: set DPI_v2=1 (or DPI=1) in /data/etaHEN/config.ini. Needed for PS4 packages only.")
+                h.hints.append(self._dpi_hint(h, configs if h.ftp else {}))
             if not h.retroarch:
                 h.hints.append("RetroArch's WebUI (6769) is not running; games copied in still appear on its next scan.")
         return h
+
+    def _dpi_hint(self, h: Health, configs: dict[str, str]) -> str:
+        name = posixpath.basename(h.etahen_config)
+        if not h.dpi_setting:
+            return ("Direct Package Installer is off: set DPI_v2=1 in /data/etaHEN/config.ini. "
+                    "Needed for PS4 packages only.")
+        # etaHEN's own FTP (1337) is a sign of life when its settings have it on.
+        etahen_ftp = ini_values(configs.get(h.etahen_config, "")).get("FTP") == "1"
+        not_running = " etaHEN does not seem to be running (its FTP on 1337 does not answer)." \
+            if etahen_ftp and not _tcp_open(self.host, FTP_PORT) else ""
+        if h.dpi_setting == "off":
+            return (f"Direct Package Installer is off in etaHEN's settings ({name}). Turn it on above; it starts "
+                    f"the next time etaHEN loads. Needed for PS4 packages only.{not_running}")
+        return (f"Direct Package Installer is on in etaHEN's settings ({name}) but does not answer: etaHEN "
+                f"reads its settings when it starts, so load etaHEN again.{not_running}")
+
+    # ---- etaHEN's settings ---------------------------------------------------------
+    def etahen_configs(self) -> dict[str, str]:
+        """etaHEN's config files on the PS5 (path -> text), the one in use first."""
+        out: dict[str, str] = {}
+        with self.ftp(timeout=10) as f:
+            for name in ETAHEN_CONFIGS:
+                buf = io.BytesIO()
+                try:
+                    f.retrbinary(f"RETR {ETAHEN_DIR}/{name}", buf.write)
+                except ftplib.error_perm:
+                    continue
+                out[f"{ETAHEN_DIR}/{name}"] = buf.getvalue().decode("utf-8", "replace")
+        return out
+
+    def set_etahen(self, values: dict[str, int]) -> list[str]:
+        """Write settings into every etaHEN config file on the PS5; returns the files written.
+        etaHEN reads them when it starts."""
+        configs = self.etahen_configs()
+        if not configs:
+            raise FileNotFoundError(f"etaHEN's settings are not on the PS5 ({ETAHEN_DIR}/{ETAHEN_CONFIGS[0]}). "
+                                    "Load etaHEN once so it writes them.")
+        with self.ftp() as f:
+            f.voidcmd("TYPE I")
+            for path, text in configs.items():
+                for k, v in values.items():
+                    text = ini_set(text, k, str(v))
+                f.storbinary(f"STOR {path}", io.BytesIO(text.encode("utf-8")))
+        return list(configs)
 
     # ---- FTP ----------------------------------------------------------------------
     def ftp(self, timeout: float = 20.0) -> ftplib.FTP:
@@ -350,6 +409,37 @@ def open_source(spec: str):
     if spec.startswith("http://") or spec.startswith("https://"):
         return HttpSource(spec)
     return LocalSource(spec)
+
+
+# ---- etaHEN's config.ini ----------------------------------------------------------------
+def ini_values(text: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for line in text.splitlines():
+        k, eq, v = line.partition("=")
+        if eq and not line.lstrip().startswith((";", "#", "[")):
+            out[k.strip()] = v.strip()
+    return out
+
+
+def ini_set(text: str, key: str, value: str) -> str:
+    """text with key=value: the existing line changed in place, else a line added under [Settings]
+    (or at the end). Line endings and everything else are kept."""
+    nl = "\r\n" if "\r\n" in text else "\n"
+    lines = text.splitlines(keepends=True)
+    for i, line in enumerate(lines):
+        k, eq, _ = line.partition("=")
+        if eq and k.strip() == key:
+            end = line[len(line.rstrip("\r\n")):] or ""
+            lines[i] = f"{k}={value}{end}"
+            return "".join(lines)
+    new = f"{key}={value}{nl}"
+    for i, line in enumerate(lines):
+        if line.strip().lower() == "[settings]":
+            lines.insert(i + 1, new if line.endswith(("\n", "\r")) else nl + new)
+            return "".join(lines)
+    if lines and not lines[-1].endswith(("\n", "\r")):
+        lines[-1] += nl
+    return "".join(lines) + new
 
 
 # ---- FTP helpers ---------------------------------------------------------------------

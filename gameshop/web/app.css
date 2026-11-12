@@ -254,6 +254,7 @@ h2 .count { color: var(--dim); font-size: 14px; font-weight: 600; }
 .dest-table td { padding: 8px 6px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: middle; }
 .dest-table input { width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 13px; }
 .health li { list-style: none; display: flex; gap: 10px; align-items: center; padding: 6px 0; }
+.health li .btn { margin-left: auto; white-space: nowrap; }
 .health ul { padding: 0; margin: 10px 0; }
 .ok { color: var(--green); } .bad { color: var(--red); }
 .two-pane { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
