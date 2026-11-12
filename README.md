@@ -35,19 +35,25 @@ The store opens at `http://127.0.0.1:8750/`. On the PS5's browser (or a phone) u
 the console prints at start-up, for example `http://192.168.1.20:8750/`; the PS5 browser switches
 to TV mode by itself.
 
-Nobody wants to type an address with a controller, so Settings has **Put a Game Shop tile on the
-PS5**: it copies a tiny PS5 app over FTP to `/data/homebrew/PPSA87500/`, with this PC's store
-address in `url.txt` beside it. Shadow Mount+ adds it to the home screen on its next scan (every
-15 s, but not while a game or app is open), and opening the tile opens the store in the PS5 browser.
-Press it again if this PC's address changes. **Open on the PS5 now** sends a payload to the ELF
-loader that opens the browser at the store straight away.
+**Game Shop on the PS5 home screen.** Settings has **Put a Game Shop tile on the PS5**: it copies
+the Game Shop PS5 app over FTP to `/data/homebrew/PPSA87500/`, with this PC's store address in
+`url.txt` beside it. Shadow Mount+ adds it to the home screen on its next scan (every 15 s, but not
+while a game or app is open). The tile opens the store as an app of its own, full screen and driven
+by the controller like FLEX: a cover grid per console (L1/R1 to change console, the first page is
+*Recently added*), a game page where Cross sends the game to the PS5, and *Downloads* with each
+copy's progress (Cross cancels, or retries a failed one). Triangle reloads, holding Circle closes it.
+It asks this PC for covers as small JPEGs (`/art/<id>?w=300`) and keeps them in `/data/gameshop/`,
+along with its log. Press the button again after updating Game Shop or if this PC's address changes.
+**Open on the PS5 now** sends a payload to the ELF loader that opens the web store in the PS5
+browser straight away.
 
 Both are built in WSL from `ps5/` (`PS5_PAYLOAD_SDK=/opt/ps5-payload-sdk make`) and committed, so
-the Windows build needs no SDK: the payload under `gameshop/payloads/`, the tile app under
-`gameshop/ps5app/PPSA87500/`. The tile app is linked and fake-signed with the native-app kit from
+the Windows build needs no SDK: the payload under `gameshop/payloads/`, the app under
+`gameshop/ps5app/PPSA87500/`. The app is drawn with the SDK's SDL2 ports, and its startup, heap and
+HTTP code come from FLEX's PS5 app. It is linked and fake-signed with the native-app kit from
 [Forwarder Manager](https://github.com/heydemoura/ps5-forwarder-manager) (GPL-3.0-or-later, which
 also supplies the clean-room `sce_module/libc.prx`); set it up once with FLEX's
-`ps5-client/tools/setup-app-kit.sh`.
+`ps5-client/tools/setup-app-kit.sh`. It uses cJSON (MIT) and the DejaVu fonts.
 
 Allow the port through Windows Firewall once (needed for the PS5 browser and for PS4 installs,
 where the PS5 downloads the package from this PC). From an **administrator** PowerShell:

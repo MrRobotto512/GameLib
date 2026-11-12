@@ -124,3 +124,33 @@ def test_hide_and_unhide(tmp_path: Path):
             time.sleep(0.1)
         assert sorted(i["title"] for i in c.get("/api/items").json()) == ["Tekken 3", "junk"]
         assert c.get("/api/config").json()["hidden"] == []
+
+
+def test_art_thumbnail_for_the_ps5_app(tmp_path: Path):
+    """/art/<id>?w=N answers a JPEG N pixels wide (the PS5 app's grid), made once and kept; without
+    w the cover comes as it is."""
+    import io
+    from PIL import Image
+    lib = tmp_path / "lib"
+    lib.mkdir()
+    (lib / "Tekken 3 (USA).chd").write_bytes(b"T" * 2000)
+    agent = Agent(tmp_path / "data")
+    agent.store.config.art_enabled = False
+    agent.store.config.discovery = False
+    with Server(agent) as srv:
+        c = httpx.Client(base_url=f"http://127.0.0.1:{srv.port}", timeout=10)
+        c.post("/api/sources", json={"path": str(lib), "system": "psx"})
+        for _ in range(50):
+            if c.get("/api/state").json()["total"] == 1:
+                break
+            time.sleep(0.1)
+        item = c.get("/api/items").json()[0]
+        Image.new("RGBA", (600, 900), (200, 30, 30, 255)).save(agent.art.path_for(item["id"]))
+        full = c.get(f"/art/{item['id']}")
+        assert full.headers["content-type"] == "image/png"
+        small = c.get(f"/art/{item['id']}?w=300")
+        assert small.status_code == 200 and small.headers["content-type"] == "image/jpeg"
+        assert Image.open(io.BytesIO(small.content)).size == (300, 450)
+        assert len(list((agent.art.dir / "thumbs").glob("*.jpg"))) == 1
+        assert c.get(f"/art/{item['id']}?w=300").content == small.content   # from the kept copy
+        assert Image.open(io.BytesIO(c.get(f"/art/{item['id']}?w=5000").content)).size == (600, 900)  # never enlarged

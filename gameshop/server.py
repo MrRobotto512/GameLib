@@ -554,13 +554,16 @@ def create_app(agent: Agent | None = None) -> FastAPI:
         return FileResponse(p, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
     @app.get("/art/{item_id}")
-    async def art(item_id: str, kind: str = "box"):
+    async def art(item_id: str, kind: str = "box", w: int = 0):
+        """A game's art; w (64-800) asks for a JPEG that wide, for the PS5 app's grid."""
+        w = min(max(w, 64), 800) if w else 0
         peer_key, local = agent.split_id(item_id)
         if peer_key:
             peer = agent.peers.get(peer_key)
             if not peer:
                 raise HTTPException(404)
-            return await anyio.to_thread.run_sync(_proxy_stream, f"{peer.url}/art/{local}?kind={kind}", None, limiter=ART_LIMITER)
+            url = f"{peer.url}/art/{local}?kind={kind}" + (f"&w={w}" if w else "")   # an older peer sends the full size
+            return await anyio.to_thread.run_sync(_proxy_stream, url, None, limiter=ART_LIMITER)
         it = agent.db.item(local)
         if not it:
             raise HTTPException(404)
@@ -570,6 +573,11 @@ def create_app(agent: Agent | None = None) -> FastAPI:
             p = await anyio.to_thread.run_sync(lambda: agent.art.get(it, kind=kind), limiter=ART_LIMITER)
         if not p:
             raise HTTPException(404)
+        if w:
+            try:
+                p = await anyio.to_thread.run_sync(agent.art.thumb, p, w, limiter=ART_LIMITER)
+            except OSError:
+                pass                       # not an image Pillow reads: send it as it is
         with open(p, "rb") as f:
             magic = f.read(3)
         media = "image/jpeg" if magic[:2] == b"\xff\xd8" else "image/webp" if magic[:3] == b"RIF" else "image/png"

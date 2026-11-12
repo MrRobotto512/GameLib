@@ -26,7 +26,6 @@ PARTIAL_SUFFIX = ".gameshop-partial"
 PAYLOAD_DIR = resource_dir() / "payloads"                    # built from ps5/ with the ps5-payload-sdk
 TILE_ID = "PPSA87500"                                         # the Game Shop tile app's title id on the PS5
 TILE_APP = resource_dir() / "ps5app" / TILE_ID                # built from ps5/app/ with the app kit
-TILE_FILES = ("sce_module/libc.prx", "sce_sys/param.json", "sce_sys/icon0.png", "eboot.bin")
 URL_MARK = b"GAMESHOP_URL_PLACEHOLDER"                        # start of a 512-byte buffer in gameshop-open.elf
 BLOCK = 1 << 20
 
@@ -268,16 +267,17 @@ class PS5Client:
 
     # ---- the Game Shop tile and the open payload -----------------------------------
     def install_tile(self, url: str) -> None:
-        """Put a Game Shop tile on the PS5 home screen: copy the tile app (gameshop/ps5app/<id>/) to
+        """Put Game Shop on the PS5 home screen: copy the Game Shop app (gameshop/ps5app/<id>/) to
         /data/homebrew/<id>/, where Shadow Mount+ registers it on its next scan, with the store's
-        address in url.txt beside the eboot. Repeat to refresh the address."""
+        address in url.txt beside the eboot (the app reads it to find this PC). Repeat to update
+        the app or the address."""
         base = f"/data/homebrew/{TILE_ID}"
         with self.ftp() as f:
-            self.mkdirs(f, base + "/sce_module")
-            self.mkdirs(f, base + "/sce_sys")
+            for d in sorted({posixpath.dirname(rel) for rel in tile_files()} - {""}):
+                self.mkdirs(f, f"{base}/{d}")
             f.voidcmd("TYPE I")
             f.storbinary(f"STOR {base}/url.txt", io.BytesIO((url + "\n").encode("utf-8")))
-            for rel in TILE_FILES:           # the eboot last: Shadow Mount+ looks for it
+            for rel in tile_files():
                 with open(TILE_APP / rel, "rb") as fp:
                     f.storbinary(f"STOR {base}/{rel}", fp)
 
@@ -294,6 +294,13 @@ class PS5Client:
             return True
         except OSError:
             return False
+
+
+def tile_files() -> list[str]:
+    """The Game Shop app's files, relative to its folder, eboot.bin last: Shadow Mount+ takes a
+    folder with an eboot for a finished app, so everything else is in place first."""
+    rels = [p.relative_to(TILE_APP).as_posix() for p in TILE_APP.rglob("*") if p.is_file()]
+    return sorted(rels, key=lambda r: (r == "eboot.bin", r))
 
 
 def open_payload(url: str) -> bytes:
