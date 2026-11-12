@@ -1,0 +1,3 @@
+# copied to the PS5 byte for byte
+gameshop/ps5app/** -text
+gameshop/payloads/** -text

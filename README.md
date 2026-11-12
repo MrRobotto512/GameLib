@@ -36,12 +36,18 @@ the console prints at start-up, for example `http://192.168.1.20:8750/`; the PS5
 to TV mode by itself.
 
 Nobody wants to type an address with a controller, so Settings has **Put a Game Shop tile on the
-PS5**: it writes a web-shortcut app (`/user/app/GMSH00001/sce_sys/param.json` + icon) over FTP and
-sends a small payload to the ELF loader that registers it, and a Game Shop tile appears on the home
-screen that opens the store in the PS5 browser. Press it again if this PC's address changes. **Open
-on the PS5 now** sends a second payload that opens the browser at the store straight away. The
-payloads are built from `ps5/` with john-tornblom's ps5-payload-sdk and committed under
-`gameshop/payloads/`.
+PS5**: it copies a tiny PS5 app over FTP to `/data/homebrew/PPSA87500/`, with this PC's store
+address in `url.txt` beside it. Shadow Mount+ adds it to the home screen on its next scan (every
+15 s, but not while a game or app is open), and opening the tile opens the store in the PS5 browser.
+Press it again if this PC's address changes. **Open on the PS5 now** sends a payload to the ELF
+loader that opens the browser at the store straight away.
+
+Both are built in WSL from `ps5/` (`PS5_PAYLOAD_SDK=/opt/ps5-payload-sdk make`) and committed, so
+the Windows build needs no SDK: the payload under `gameshop/payloads/`, the tile app under
+`gameshop/ps5app/PPSA87500/`. The tile app is linked and fake-signed with the native-app kit from
+[Forwarder Manager](https://github.com/heydemoura/ps5-forwarder-manager) (GPL-3.0-or-later, which
+also supplies the clean-room `sce_module/libc.prx`); set it up once with FLEX's
+`ps5-client/tools/setup-app-kit.sh`.
 
 Allow the port through Windows Firewall once (needed for the PS5 browser and for PS4 installs,
 where the PS5 downloads the package from this PC). From an **administrator** PowerShell:

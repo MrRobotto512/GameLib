@@ -75,43 +75,43 @@ def test_client_finds_the_ftp_port(tmp_path, monkeypatch):
         assert not PS5Client("127.0.0.1", ftp_port=free_port()).health().ftp
 
 
-def test_tile_and_open_payloads(tmp_path):
-    """install_tile puts the web-shortcut files on the PS5 and sends the tile payload; open_browser
-    sends the open payload with the url written into its buffer."""
+def test_tile_app_and_open_payload(tmp_path):
+    """install_tile copies the tile app to /data/homebrew/<id>/ with the store's address in url.txt
+    (no payload); open_browser sends the open payload with the url written into its buffer."""
     import socket, threading
     from gameshop import ps5 as ps5mod
-    from tests.fakeps5 import free_port
     got: list[bytes] = []
-    srv = socket.socket(); srv.bind(("127.0.0.1", 0)); srv.listen(2)
+    srv = socket.socket(); srv.bind(("127.0.0.1", 0)); srv.listen(1)
     elf_port = srv.getsockname()[1]
 
     def accept():
-        for _ in range(2):
-            c, _ = srv.accept()
-            buf = b""
-            while True:
-                d = c.recv(65536)
-                if not d:
-                    break
-                buf += d
-            got.append(buf); c.close()
+        c, _ = srv.accept()
+        buf = b""
+        while True:
+            d = c.recv(65536)
+            if not d:
+                break
+            buf += d
+        got.append(buf); c.close()
     threading.Thread(target=accept, daemon=True).start()
     (tmp_path / "ps5").mkdir()
-    icon = tmp_path / "icon0.png"; icon.write_bytes(b"\x89PNG fake")
     with FakeFTP(tmp_path / "ps5") as ftp:
         client = PS5Client("127.0.0.1", ftp_port=ftp.port)
         client.send_bytes = lambda data, port=elf_port: PS5Client.send_bytes(client, data, elf_port)
-        client.install_tile("http://10.0.0.2:8750/", icon)
+        client.install_tile("http://10.0.0.2:8750/")
+        client.install_tile("http://10.0.0.3:8750/")       # again: the address is refreshed
         client.open_browser("http://10.0.0.2:8750/")
-    import time
     for _ in range(50):
-        if len(got) == 2:
+        if got:
             break
         time.sleep(0.1)
-    base = tmp_path / "ps5" / "user" / "app" / ps5mod.TILE_ID / "sce_sys"
-    param = json.loads((base / "param.json").read_text())
-    assert param["deeplinkUri"] == "http://10.0.0.2:8750/" and param["titleId"] == ps5mod.TILE_ID
-    assert (base / "icon0.png").read_bytes() == b"\x89PNG fake"
-    assert got[0] == (ps5mod.PAYLOAD_DIR / "gameshop-tile.elf").read_bytes()
-    assert ps5mod.URL_MARK not in got[1] and b"http://10.0.0.2:8750/\0" in got[1]
-    assert len(got[1]) == (ps5mod.PAYLOAD_DIR / "gameshop-open.elf").stat().st_size
+    base = tmp_path / "ps5" / "data" / "homebrew" / ps5mod.TILE_ID
+    assert (base / "url.txt").read_text() == "http://10.0.0.3:8750/\n"
+    for rel in ps5mod.TILE_FILES:
+        assert (base / rel).read_bytes() == (ps5mod.TILE_APP / rel).read_bytes()
+    param = json.loads((base / "sce_sys" / "param.json").read_text())
+    assert param["titleId"] == ps5mod.TILE_ID and ps5mod.TILE_ID[:4] in ("PPSA", "CUSA", "LAPY", "FAKE")
+    assert param["localizedParameters"]["en-US"]["titleName"] == "Game Shop"
+    assert len(got) == 1                                # only the open payload went to the ELF loader
+    assert ps5mod.URL_MARK not in got[0] and b"http://10.0.0.2:8750/\0" in got[0]
+    assert len(got[0]) == (ps5mod.PAYLOAD_DIR / "gameshop-open.elf").stat().st_size
