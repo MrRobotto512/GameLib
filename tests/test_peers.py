@@ -34,6 +34,7 @@ def test_peer_merge_and_gateway(tmp_path: Path, monkeypatch):
     with FakeFTP(tmp_path / "ps5") as ftp, Server(b) as sb, Server(a) as sa:
         a.store.config.peers = [f"127.0.0.1:{sb.port}"]
         a.client = lambda: ps5mod.PS5Client("127.0.0.1", ftp_port=ftp.port)
+        monkeypatch.setattr(ps5mod, "FTP_PORTS", (ftp.port,))   # the health check probes these, not a.client
         cb = httpx.Client(base_url=f"http://127.0.0.1:{sb.port}", timeout=10)
         ca = httpx.Client(base_url=f"http://127.0.0.1:{sa.port}", timeout=10)
         cb.post("/api/sources", json={"path": str(lib_b), "system": "n64"})

@@ -55,6 +55,7 @@ def test_end_to_end(tmp_path: Path, monkeypatch):
     agent.store.config.discovery = False
     with FakeFTP(tmp_path / "ps5") as ftp, FakeDPI() as dpi, Server(agent) as srv:
         monkeypatch.setattr(ps5mod, "FTP_PORT", ftp.port)
+        monkeypatch.setattr(ps5mod, "FTP_PORTS", (ftp.port,))   # the health check probes these, not agent.client
         monkeypatch.setattr(ps5mod, "DPI2_PORT", dpi.port)
         agent.client = lambda: ps5mod.PS5Client("127.0.0.1", ftp_port=ftp.port)
         c = httpx.Client(base_url=f"http://127.0.0.1:{srv.port}", timeout=10)
