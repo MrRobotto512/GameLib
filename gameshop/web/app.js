@@ -586,7 +586,8 @@
   var tv = false; try { tv = !!localStorage.getItem('gameshop.tv'); } catch (e) { }
   var viewPref = 'box'; try { viewPref = localStorage.getItem('gameshop.view') || 'box'; } catch (e) { }
   setView(viewPref, true);
-  if (/PlayStation/i.test(navigator.userAgent)) tv = true;
+  if (/PlayStation/i.test(navigator.userAgent)) { tv = true; document.documentElement.classList.add('flat'); }   // see .flat in app.css
+  if (/[?&]flat=1/.test(location.search)) document.documentElement.classList.add('flat');
   loadState(true).then(function () { setTV(tv); render(); refreshJobs(); });
   setInterval(function () { refreshJobs(); }, 2500);
   setInterval(function () { loadState(); }, 20000);

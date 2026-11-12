@@ -139,6 +139,13 @@ h2 .count { color: var(--dim); font-size: 14px; font-weight: 600; }
 .case.spin { animation: spin 9s ease-in-out infinite; }
 @keyframes spin { 0%,100% { transform: rotateY(-28deg) rotateX(4deg);} 50% { transform: rotateY(28deg) rotateX(4deg);} }
 .case.flip { transform: rotateY(180deg); }
+/* The PS5 browser paints the back face over the front (the drop-shadow filter flattens the 3D,
+   and its WebKit then ignores backface-visibility), so every case was a block of the console's
+   colour. There the case is drawn flat: the front alone, or the back when flipped. */
+.flat .case { transform: none !important; animation: none; transform-style: flat; filter: none; box-shadow: 0 22px 30px rgba(0,0,0,.5); border-radius: 4px; }
+.flat .case .face { transform: none; }
+.flat .case .spine, .flat .case .back, .flat .case.flip .front { display: none; }
+.flat .case.flip .back { display: block; }
 /* case templates */
 .case.jewel { --w: 142px; --h: 125px; --d: 10px; --shell: #cfd3dc; }
 .case.jewel .front { border-color: rgba(255,255,255,.35); }
