@@ -18,7 +18,7 @@ from typing import Any, Iterator
 
 import anyio
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
@@ -877,6 +877,13 @@ def create_app(agent: Agent | None = None) -> FastAPI:
 
     @app.get("/")
     def index():
-        return FileResponse(WEB / "index.html", headers={"Cache-Control": "no-cache"})
+        # the scripts and styles are linked with a stamp of their own, so an update (or an edited
+        # file) reaches browsers that cached the old ones, the PS5's included
+        html = (WEB / "index.html").read_text(encoding="utf-8")
+        for name in ("app.css", "shelf.css", "shelf.js", "app.js"):
+            f = WEB / name
+            stamp = f"{__version__}.{int(f.stat().st_mtime)}" if f.exists() else __version__
+            html = html.replace(f'/static/{name}"', f'/static/{name}?v={stamp}"')
+        return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
     return app

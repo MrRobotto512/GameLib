@@ -2,13 +2,17 @@
  * It talks to the Game Shop running on the PC (the address the PC wrote to url.txt beside the
  * eboot when it installed the app) through the same API the web store uses.
  *
- * Grid: D-pad moves, L1/R1 change console (first "Recently added", last "Downloads"), Cross
- * opens a game, Triangle reloads, holding Circle closes the app. Game page: Cross sends it to
- * the PS5, Circle goes back. Downloads: Cross cancels a copy (or tries a failed one again). */
+ * Shelf: every console is a 3D shelf of boxes, the selected one facing you and the rest standing
+ * spine-out on either side, laid out like Boxshelf's (https://github.com/sassiestrhihno/boxshelf-source,
+ * GPL-3.0; see draw_shelf). Left/Right browse, Up/Down or L1/R1 change console (first "Recently
+ * added", last "Downloads"), Square flips the box, Cross opens a game, Triangle reloads, holding
+ * Circle closes the app. Game page: Cross sends it to the PS5, Circle goes back. Downloads: Cross
+ * cancels a copy (or tries a failed one again). */
 
 #include <SDL.h>
 #include <SDL_image.h>
 #include <SDL_ttf.h>
+#include <math.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,16 +27,10 @@
 #define SCREEN_W 1920
 #define SCREEN_H 1080
 
-/* grid: 6 columns x 2 rows of cards at 1080p */
-#define COLS 6
-#define ROWS 2
+/* page margins at 1080p (the game page and Downloads) */
 #define MARGIN_X 75
 #define GRID_TOP 190
-#define CARD_W 270
-#define CARD_H 400
-#define COVER_H 300
-#define GAP 30
-#define THUMB_W 300  /* cover width asked of the PC for the grid */
+#define THUMB_W 300  /* cover width asked of the PC for the shelf */
 #define DETAIL_W 640 /* and for a game page */
 #define HOLD_EXIT_MS 1000
 
@@ -41,12 +39,12 @@ static const SDL_Color WHITE = {255, 255, 255, 255}, DIM = {160, 164, 184, 255},
                        TRACK = {50, 50, 70, 255}, RED = {235, 90, 90, 255}, GREEN = {110, 210, 140, 255};
 
 typedef struct {
-    char id[128], title[192], sub[160];
+    char id[128], title[192], sub[160], sys[32];
     SDL_Color color;
     int art;
     long key;
-    SDL_Texture *tex;
-    int tw, th, asked;
+    SDL_Texture *tex, *spine; /* the cover, and the title as the spine prints it */
+    int tw, th, asked, sw, sh;
 } Item;
 
 enum { TAB_RECENT, TAB_SYSTEM, TAB_DOWNLOADS };
@@ -56,6 +54,7 @@ typedef struct {
     char id[32], name[64];
     SDL_Color color;
     int count;
+    float ratio; /* the boxes' width / height */
     Item *items;
     int n, loaded, sel, first;
 } Tab;
@@ -147,6 +146,7 @@ static void parse_item(cJSON *o, Item *it) {
     memset(it, 0, sizeof *it);
     snprintf(it->id, sizeof it->id, "%s", jstr(o, "id"));
     snprintf(it->title, sizeof it->title, "%s", jstr(o, "title"));
+    snprintf(it->sys, sizeof it->sys, "%s", jstr(o, "system"));
     it->color = parse_color(jstr(o, "color"));
     it->art = cJSON_IsTrue(cJSON_GetObjectItem(o, "art"));
     char size[32];
@@ -157,11 +157,24 @@ static void parse_item(cJSON *o, Item *it) {
 }
 
 static void free_items(Tab *t) {
-    for (int i = 0; i < t->n; i++)
+    for (int i = 0; i < t->n; i++) {
         if (t->items[i].tex) SDL_DestroyTexture(t->items[i].tex);
+        if (t->items[i].spine) SDL_DestroyTexture(t->items[i].spine);
+    }
     free(t->items);
     t->items = NULL;
     t->n = t->loaded = t->sel = t->first = 0;
+}
+
+/* width / height of each kind of box (systems.toml's case names), as the web shelf has them */
+static float case_ratio(const char *c) {
+    static const struct { const char *name; float r; } R[] = {
+        {"dvd", .70f}, {"bd", .80f}, {"mini-dvd", .72f}, {"umd", .58f}, {"switch", .62f}, {"jewel", 1.0f},
+        {"cart-snes", 1.40f}, {"cart-n64", 1.40f}, {"cart-gb", .82f}, {"cart-lynx", .82f}, {"cart-ds", .88f},
+        {"cart-genesis", .72f}, {"cart-sms", .72f}, {"cart-", .72f}, {"generic", .75f}};
+    for (size_t i = 0; i < sizeof R / sizeof R[0]; i++)
+        if (!strncmp(c, R[i].name, strlen(R[i].name))) return R[i].r;
+    return .72f;
 }
 
 static int load_state(void) {
@@ -175,7 +188,7 @@ static int load_state(void) {
     cJSON *systems = cJSON_GetObjectItem(j, "systems"), *s;
     g_tabs = calloc(cJSON_GetArraySize(systems) + 2, sizeof *g_tabs);
     g_ntabs = 0;
-    g_tabs[g_ntabs++] = (Tab){.kind = TAB_RECENT, .name = "Recently added", .color = GOLD};
+    g_tabs[g_ntabs++] = (Tab){.kind = TAB_RECENT, .name = "Recently added", .color = GOLD, .ratio = .72f};
     cJSON_ArrayForEach(s, systems) {
         int count = (int)jnum(s, "count");
         if (!count) continue;
@@ -185,8 +198,9 @@ static int load_state(void) {
         snprintf(t->id, sizeof t->id, "%s", jstr(s, "id"));
         snprintf(t->name, sizeof t->name, "%s", jstr(s, "name"));
         t->color = parse_color(jstr(s, "color"));
+        t->ratio = case_ratio(jstr(s, "case"));
     }
-    g_tabs[g_ntabs++] = (Tab){.kind = TAB_DOWNLOADS, .name = "Downloads", .color = GOLD};
+    g_tabs[g_ntabs++] = (Tab){.kind = TAB_DOWNLOADS, .name = "Downloads", .color = GOLD, .ratio = .72f};
     if (g_tab >= g_ntabs) g_tab = 0;
     cJSON_Delete(j);
     g_gen++;
@@ -267,26 +281,28 @@ static int take_covers(SDL_Renderer *ren, Item *detail) {
     return any;
 }
 
-/* want_visible asks for the covers on screen and a row either side, and lets go of textures far
- * from view so memory stays flat however far one scrolls. */
+#define SHELF_WIN 8 /* boxes drawn on each side of the selection */
+
+/* want_visible asks for the covers on the shelf, the selected one last (covers_want serves the
+ * newest first), and lets go of textures far from it so memory stays flat however far one goes. */
 static void want_visible(Tab *t) {
-    int lo = (t->first - 1) * COLS, hi = (t->first + ROWS + 1) * COLS;
+    int lo = t->sel - SHELF_WIN - 2, hi = t->sel + SHELF_WIN + 2;
     for (int i = 0; i < t->n; i++) {
         Item *it = &t->items[i];
-        if (it->tex && (i < lo - 2 * COLS || i >= hi + 2 * COLS)) {
-            SDL_DestroyTexture(it->tex);
-            it->tex = NULL;
-            it->asked = 0;
-        }
+        if (i >= lo - 10 && i <= hi + 10) continue;
+        if (it->tex) SDL_DestroyTexture(it->tex), it->tex = NULL, it->asked = 0;
+        if (it->spine) SDL_DestroyTexture(it->spine), it->spine = NULL;
     }
-    for (int i = hi - 1; i >= lo; i--) { /* covers_want serves the newest first: ask top-left last */
-        if (i < 0 || i >= t->n) continue;
-        Item *it = &t->items[i];
-        if (it->art && !it->tex && !it->asked) {
-            covers_want(it->key, it->id, THUMB_W);
-            it->asked = 1;
+    for (int d = hi - t->sel; d >= 0; d--)
+        for (int k = 0; k < 2; k++) {
+            int i = t->sel + (k ? -d : d);
+            if (i < 0 || i >= t->n || (k && !d)) continue;
+            Item *it = &t->items[i];
+            if (it->art && !it->tex && !it->asked) {
+                covers_want(it->key, it->id, THUMB_W);
+                it->asked = 1;
+            }
         }
-    }
 }
 
 /* ---------- drawing ---------- */
@@ -407,24 +423,265 @@ static void draw_legend(SDL_Renderer *ren, const char *text) {
     }
 }
 
-static void draw_grid(SDL_Renderer *ren, Tab *t) {
+/* ---------- the shelf ----------
+ * Laid out like Boxshelf's coverflow (its renderer/app.js, place()): the selected box sits forward,
+ * turned 22 degrees so its spine shows; the rest recede in a tight stack turned 60 degrees, so their
+ * spines read like a shelf. Each box is a real 3D box (front, back and both spines) seen through a
+ * perspective of 1800 px, drawn with SDL_RenderGeometry, since this SDL has only the software renderer. */
+#define CAM_P 1800.0f
+#define SHELF_Y 454 /* where the selected box's centre sits: 42% down the screen */
+static float g_pos;            /* the shelf's position, easing towards the selection */
+static float g_flip, g_flip_to; /* the selected box's extra turn, 0 or 180 */
+static SDL_Texture *g_glow;    /* a soft round light, for the halo and the floor */
+
+typedef struct { float x, y; } P2;
+typedef struct { float x, y, z; } P3;
+
+static float tab_ratio_of(const Item *it, const Tab *t) {
+    if (t->kind == TAB_SYSTEM) return t->ratio;
+    for (int i = 0; i < g_ntabs; i++)
+        if (g_tabs[i].kind == TAB_SYSTEM && !strcmp(g_tabs[i].id, it->sys)) return g_tabs[i].ratio;
+    return .72f;
+}
+
+/* where a point of a box lands on screen: the box turned by ry (degrees, CSS rotateY) about its
+ * upright axis and moved to (bx, bz); z comes towards the viewer */
+static P2 project(P3 p, float bx, float bz, float ry) {
+    float a = ry * (float)M_PI / 180.0f, c = cosf(a), sn = sinf(a);
+    float x = p.x * c + p.z * sn + bx, z = -p.x * sn + p.z * c + bz;
+    float k = CAM_P / (CAM_P - z);
+    return (P2){SCREEN_W / 2 + x * k, SHELF_Y + p.y * k};
+}
+
+/* a point (s across, t down) of a face given by its corners tl, tr, bl */
+static P3 on_face(const P3 *f, float u, float v) {
+    return (P3){f[0].x + (f[1].x - f[0].x) * u + (f[3].x - f[0].x) * v, f[0].y + (f[1].y - f[0].y) * u + (f[3].y - f[0].y) * v,
+                f[0].z + (f[1].z - f[0].z) * u + (f[3].z - f[0].z) * v};
+}
+
+static void quad(SDL_Renderer *ren, SDL_Texture *tex, const P2 *p, const SDL_FPoint *uv, SDL_Color c) {
+    SDL_Vertex v[4];
+    for (int i = 0; i < 4; i++) v[i] = (SDL_Vertex){{p[i].x, p[i].y}, c, uv ? uv[i] : (SDL_FPoint){0, 0}};
+    static const int idx[6] = {0, 1, 2, 0, 2, 3};
+    SDL_RenderGeometry(ren, tex, v, 4, idx, 6);
+}
+
+/* a part of a face (u0..u1 across, v0..v1 down), filled or textured */
+static void face_part(SDL_Renderer *ren, const P3 *f, float u0, float v0, float u1, float v1, float bx, float bz, float ry,
+                      SDL_Texture *tex, const SDL_FPoint *uv, SDL_Color c) {
+    P2 p[4] = {project(on_face(f, u0, v0), bx, bz, ry), project(on_face(f, u1, v0), bx, bz, ry),
+               project(on_face(f, u1, v1), bx, bz, ry), project(on_face(f, u0, v1), bx, bz, ry)};
+    quad(ren, tex, p, uv, c);
+}
+
+/* seen from outside: its corners run clockwise on screen */
+static int facing(const P3 *f, float bx, float bz, float ry) {
+    P2 a = project(f[0], bx, bz, ry), b = project(f[1], bx, bz, ry), d = project(f[3], bx, bz, ry);
+    return (b.x - a.x) * (d.y - a.y) - (b.y - a.y) * (d.x - a.x) > 0;
+}
+
+static SDL_Color shade(SDL_Color c, int pct) { return (SDL_Color){c.r * pct / 100, c.g * pct / 100, c.b * pct / 100, c.a}; }
+
+static void draw_spine(SDL_Renderer *ren, Item *it, const P3 *f, float bx, float bz, float ry, int lit, SDL_Color band) {
+    SDL_Color k = {lit, lit, lit, 255};
+    face_part(ren, f, 0, 0, 1, 1, bx, bz, ry, NULL, NULL, shade((SDL_Color){22, 22, 28, 255}, lit * 100 / 255));
+    face_part(ren, f, 0, 0, 1, .09f, bx, bz, ry, NULL, NULL, shade(band, lit * 100 / 255));
+    if (!it->spine) {
+        SDL_Surface *t = TTF_RenderUTF8_Blended(g_small, it->title, (SDL_Color){230, 230, 238, 255});
+        if (!t) return;
+        it->spine = SDL_CreateTextureFromSurface(ren, t);
+        it->sw = t->w, it->sh = t->h;
+        SDL_FreeSurface(t);
+    }
+    /* the title runs down the spine, the tops of its letters towards the front (CSS vertical-rl) */
+    float len = (f[3].y - f[0].y), across = fabsf(f[1].z - f[0].z) + fabsf(f[1].x - f[0].x);
+    float sc = across * .62f / it->sh, tl = it->sw * sc / len;
+    if (tl > .84f) tl = .84f;
+    float u0 = .19f, u1 = .81f, v0 = .12f, v1 = .12f + tl, uend = it->sw * sc / len > .84f ? .84f / (it->sw * sc / len) : 1;
+    SDL_FPoint uv[4] = {{0, 1}, {0, 0}, {uend, 0}, {uend, 1}};
+    face_part(ren, f, u0, v0, u1, v1, bx, bz, ry, it->spine, uv, k);
+}
+
+static void draw_box(SDL_Renderer *ren, Item *it, const Tab *t, float bx, float bz, float ry, float h, int sel, int lit) {
+    float w = h * tab_ratio_of(it, t), d = w * .12f, X = w / 2, Y = h / 2, Z = d / 2;
+    P3 front[4] = {{-X, -Y, Z}, {X, -Y, Z}, {X, Y, Z}, {-X, Y, Z}};
+    P3 back[4] = {{X, -Y, -Z}, {-X, -Y, -Z}, {-X, Y, -Z}, {X, Y, -Z}};
+    P3 left[4] = {{-X, -Y, -Z}, {-X, -Y, Z}, {-X, Y, Z}, {-X, Y, -Z}};
+    P3 right[4] = {{X, -Y, Z}, {X, -Y, -Z}, {X, Y, -Z}, {X, Y, Z}};
+    SDL_Color band = it->color.a ? it->color : GOLD, cs = shade((SDL_Color){20, 20, 24, 255}, lit * 100 / 255);
+    if (facing(left, bx, bz, ry)) draw_spine(ren, it, left, bx, bz, ry, lit, band);
+    if (facing(right, bx, bz, ry)) draw_spine(ren, it, right, bx, bz, ry, lit, band);
+    if (facing(back, bx, bz, ry)) {
+        face_part(ren, back, 0, 0, 1, 1, bx, bz, ry, NULL, NULL, cs);
+        face_part(ren, back, .06f, .06f, .94f, .94f, bx, bz, ry, NULL, NULL, shade((SDL_Color){30, 31, 40, 255}, lit * 100 / 255));
+    }
+    if (!facing(front, bx, bz, ry)) return;
+    if (sel) { /* the glow round the selected box, in its console's colour */
+        P2 p[4];
+        for (int i = 0; i < 4; i++) p[i] = project(front[i], bx, bz, ry);
+        for (int g = 3; g >= 1; g--) {
+            P2 q[4];
+            for (int i = 0; i < 4; i++) q[i] = (P2){p[i].x + (i == 0 || i == 3 ? -1 : 1) * g * 9, p[i].y + (i < 2 ? -1 : 1) * g * 9};
+            quad(ren, NULL, q, NULL, (SDL_Color){band.r, band.g, band.b, (Uint8)(34 * (4 - g))});
+        }
+        P2 o[4];
+        for (int i = 0; i < 4; i++) o[i] = (P2){p[i].x + (i == 0 || i == 3 ? -2.5f : 2.5f), p[i].y + (i < 2 ? -2.5f : 2.5f)};
+        quad(ren, NULL, o, NULL, (SDL_Color){235, 235, 240, 220});
+    }
+    face_part(ren, front, 0, 0, 1, 1, bx, bz, ry, NULL, NULL, cs);
+    SDL_Color k = {lit, lit, lit, 255};
+    if (it->tex) {
+        /* the cover fills the face, cropped to it; a square icon (Switch, PS4 packages) sits whole */
+        float fa = w / h, ta = (float)it->tw / it->th;
+        if (ta > fa * 1.2f) {
+            float vh = fa / ta * .95f;
+            SDL_FPoint uv[4] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+            face_part(ren, front, .025f, .5f - vh / 2, .975f, .5f + vh / 2, bx, bz, ry, it->tex, uv, k);
+        } else {
+            float u0 = 0, u1 = 1, v0 = 0, v1 = 1;
+            if (ta > fa) u0 = (1 - fa / ta) / 2, u1 = 1 - u0;
+            else v0 = (1 - ta / fa) / 2, v1 = 1 - v0;
+            SDL_FPoint uv[4] = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
+            face_part(ren, front, .025f, .018f, .975f, .982f, bx, bz, ry, it->tex, uv, k);
+        }
+    } else {
+        face_part(ren, front, .025f, .018f, .975f, .982f, bx, bz, ry, NULL, NULL, shade(mix(band, BG, 45), lit * 100 / 255));
+        if (sel) {
+            P2 a = project(on_face(front, .1f, .42f), bx, bz, ry), b = project(on_face(front, .9f, .42f), bx, bz, ry);
+            draw_wrapped(ren, g_small, it->title, (SDL_Rect){(int)a.x, (int)a.y, (int)(b.x - a.x), (int)(h / 2)}, WHITE);
+        }
+    }
+    /* the clear plastic: a soft light along the top */
+    face_part(ren, front, 0, 0, 1, .2f, bx, bz, ry, NULL, NULL, (SDL_Color){255, 255, 255, (Uint8)(sel ? 22 : 12)});
+}
+
+/* where the box at d places from the selection sits (Boxshelf's place(), made continuous so the
+ * shelf can slide between two selections) */
+static void shelf_slot(float d, float bw, float *x, float *z, float *ry) {
+    float ad = fabsf(d), sg = d < 0 ? -1.0f : 1.0f, bd = bw * .12f;
+    if (ad <= 1) {
+        *x = sg * bw * 1.22f * ad;
+        *z = bw * 1.05f + (-bw * .7f - 6 - bw * 1.05f) * ad;
+        *ry = 22 + (-sg * 60 - 22) * ad;
+    } else {
+        *x = sg * (bw * 1.22f + (ad - 1) * (bw * .22f + bd * .9f));
+        *z = -bw * .7f - ad * 6;
+        *ry = -sg * 60;
+    }
+}
+
+static void glow_at(SDL_Renderer *ren, int cx, int cy, int rw, int rh, SDL_Color c) {
+    if (!g_glow) {
+        SDL_Surface *s = SDL_CreateRGBSurfaceWithFormat(0, 128, 128, 32, SDL_PIXELFORMAT_ARGB8888);
+        if (!s) return;
+        Uint32 *px = s->pixels;
+        for (int y = 0; y < 128; y++)
+            for (int x = 0; x < 128; x++) {
+                float dx = (x - 63.5f) / 64, dy = (y - 63.5f) / 64, r = sqrtf(dx * dx + dy * dy);
+                float a = r >= 1 ? 0 : (1 - r) * (1 - r);
+                px[y * 128 + x] = ((Uint32)(a * 255) << 24) | 0xffffff;
+            }
+        g_glow = SDL_CreateTextureFromSurface(ren, s);
+        SDL_FreeSurface(s);
+        SDL_SetTextureBlendMode(g_glow, SDL_BLENDMODE_BLEND);
+    }
+    SDL_SetTextureColorMod(g_glow, c.r, c.g, c.b);
+    SDL_SetTextureAlphaMod(g_glow, c.a);
+    SDL_RenderCopy(ren, g_glow, NULL, &(SDL_Rect){cx - rw / 2, cy - rh / 2, rw, rh});
+}
+
+static int text_w(TTF_Font *f, const char *s) {
+    int w = 0, h = 0;
+    TTF_SizeUTF8(f, s, &w, &h);
+    return w;
+}
+
+static void draw_shelf_hud(SDL_Renderer *ren, Tab *t, float h) {
+    /* the console's name, big, top left; the consoles as a row of pills; the counter top right */
+    char name[96], count[64];
+    snprintf(name, sizeof name, "%s", t->name);
+    for (char *c = name; *c; c++)
+        if (*c >= 'a' && *c <= 'z') *c -= 32;
+    draw_text_fit(ren, g_bold, name, 64, 44, 560, WHITE);
+    snprintf(count, sizeof count, t->kind == TAB_RECENT ? "NEWEST FIRST" : "%d GAMES", t->count);
+    draw_text(ren, g_small, count, 66, 98, DIM);
+    int lo = g_tab, hi = g_tab, wsum = text_w(g_small, g_tabs[g_tab].name) + 40;
+    while (lo > 0 || hi + 1 < g_ntabs) { /* as many neighbours as fit in 760 px */
+        int grew = 0;
+        if (hi + 1 < g_ntabs && wsum + text_w(g_small, g_tabs[hi + 1].name) + 40 <= 760) wsum += text_w(g_small, g_tabs[++hi].name) + 40, grew = 1;
+        if (lo > 0 && wsum + text_w(g_small, g_tabs[lo - 1].name) + 40 <= 760) wsum += text_w(g_small, g_tabs[--lo].name) + 40, grew = 1;
+        if (!grew) break;
+    }
+    int x = SCREEN_W / 2 - wsum / 2;
+    fill(ren, (SDL_Rect){x - 6, 36, wsum + 12, 52}, (SDL_Color){8, 10, 20, 150});
+    for (int i = lo; i <= hi; i++) {
+        int w = text_w(g_small, g_tabs[i].name) + 40;
+        if (i == g_tab) fill(ren, (SDL_Rect){x, 42, w, 40}, (SDL_Color){235, 235, 240, 255});
+        draw_text(ren, g_small, g_tabs[i].name, x + 20, 49, i == g_tab ? (SDL_Color){16, 18, 26, 255} : DIM);
+        x += w;
+    }
+    draw_text(ren, g_small, "L1", SCREEN_W / 2 - wsum / 2 - 52, 51, DIM);
+    draw_text(ren, g_small, "R1", SCREEN_W / 2 + wsum / 2 + 22, 51, DIM);
+    if (t->n) {
+        snprintf(count, sizeof count, "%d / %d", t->sel + 1, t->n);
+        draw_text(ren, g_font, count, SCREEN_W - 64 - text_w(g_font, count), 44, WHITE);
+    }
+    /* the title strip under the box */
+    if (t->sel < t->n) {
+        Item *it = &t->items[t->sel];
+        int y = SHELF_Y + (int)(h / 2) + 70;
+        int w = text_w(g_big, it->title);
+        if (w > SCREEN_W - 200) w = SCREEN_W - 200;
+        draw_text_fit(ren, g_big, it->title, SCREEN_W / 2 - w / 2, y, SCREEN_W - 200, WHITE);
+        w = text_w(g_small, it->sub);
+        draw_text(ren, g_small, it->sub, SCREEN_W / 2 - w / 2, y + 74, DIM);
+    }
+}
+
+static void draw_shelf(SDL_Renderer *ren, Tab *t) {
+    SDL_Color c = t->kind == TAB_RECENT && t->sel < t->n ? t->items[t->sel].color : t->color;
+    if (!c.a) c = GOLD;
+    float h = 470, bw = h * t->ratio;
+    /* the backdrop: the console's colour washing down into black, a halo and a floor glow */
+    SDL_Vertex bg[4] = {{{0, 0}, mix(c, BG, 22), {0, 0}}, {{SCREEN_W, 0}, mix(c, BG, 22), {0, 0}},
+                        {{SCREEN_W, SCREEN_H}, {4, 4, 8, 255}, {0, 0}}, {{0, SCREEN_H}, {4, 4, 8, 255}, {0, 0}}};
+    static const int idx[6] = {0, 1, 2, 0, 2, 3};
+    SDL_RenderGeometry(ren, NULL, bg, 4, idx, 6);
+    glow_at(ren, SCREEN_W / 2, SHELF_Y, (int)(bw * 2.6f), (int)(h * 1.7f), (SDL_Color){c.r, c.g, c.b, 90});
+    glow_at(ren, SCREEN_W / 2, SHELF_Y + (int)(h / 2) + 24, (int)(bw * 2.4f), 70, (SDL_Color){c.r, c.g, c.b, 150});
     if (!t->loaded || !t->n) {
-        draw_text(ren, g_font, t->loaded ? "Nothing here yet." : "Couldn't load this list. Triangle: try again.", MARGIN_X,
-                  GRID_TOP, DIM);
+        const char *msg = t->loaded ? "Nothing here yet." : "Couldn't load this shelf. Triangle: try again.";
+        draw_text(ren, g_font, msg, SCREEN_W / 2 - text_w(g_font, msg) / 2, SHELF_Y, DIM);
+        draw_shelf_hud(ren, t, h);
         return;
     }
-    for (int r = 0; r < ROWS; r++)
-        for (int c = 0; c < COLS; c++) {
-            int i = (t->first + r) * COLS + c;
-            if (i >= t->n) return;
-            Item *it = &t->items[i];
-            SDL_Rect card = {MARGIN_X + c * (CARD_W + GAP), GRID_TOP + r * (CARD_H + GAP), CARD_W, CARD_H};
-            fill(ren, card, mix(it->color, PANEL, 18));
-            draw_cover(ren, it, (SDL_Rect){card.x + 14, card.y + 14, card.w - 28, COVER_H - 14}, g_small);
-            draw_text_fit(ren, g_small, it->title, card.x + 14, card.y + COVER_H + 14, card.w - 28, WHITE);
-            draw_text_fit(ren, g_small, it->sub, card.x + 14, card.y + COVER_H + 50, card.w - 28, DIM);
-            if (i == t->sel) frame(ren, card, 5, GOLD);
+    /* the outermost boxes first, the selected one last */
+    int base = (int)floorf(g_pos + .5f);
+    for (int k = SHELF_WIN; k >= 0; k--)
+        for (int side = 1; side >= -1; side -= 2) {
+            int i = base + side * k;
+            if ((k == 0 && side < 0) || i < 0 || i >= t->n) continue;
+            float d = i - g_pos, x, z, ry;
+            shelf_slot(d, bw, &x, &z, &ry);
+            int sel = i == t->sel && fabsf(d) < .5f;
+            if (sel) ry += g_flip;
+            float ad = fabsf(d);
+            int lit = sel ? 255 : ad > SHELF_WIN - 1 ? (int)(170 * (SHELF_WIN - ad)) : 170;
+            if (lit <= 0) continue;
+            draw_box(ren, &t->items[i], t, x, z, ry, h, sel, lit);
         }
+    draw_shelf_hud(ren, t, h);
+}
+
+/* eases the shelf and the flip towards where they should be; 1 while still moving */
+static int shelf_step(Tab *t) {
+    int moving = 0;
+    float target = (float)t->sel;
+    if (fabsf(target - g_pos) > .002f) g_pos += (target - g_pos) * .28f, moving = 1;
+    else g_pos = target;
+    if (fabsf(g_flip_to - g_flip) > .5f) g_flip += (g_flip_to - g_flip) * .2f, moving = 1;
+    else g_flip = g_flip_to;
+    return moving;
 }
 
 static void draw_downloads(SDL_Renderer *ren) {
@@ -558,21 +815,9 @@ static void draw_message(SDL_Renderer *ren, const char *l1, const char *l2) {
 
 /* ---------- input ---------- */
 
-static void move_grid(Tab *t, int button) {
-    int s = t->sel;
-    switch (button) {
-    case SDL_CONTROLLER_BUTTON_DPAD_LEFT: if (s > 0) s--; break;
-    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: if (s + 1 < t->n) s++; break;
-    case SDL_CONTROLLER_BUTTON_DPAD_UP: if (s - COLS >= 0) s -= COLS; break;
-    case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-        if (s + COLS < t->n) s += COLS;
-        else if (s / COLS < (t->n - 1) / COLS) s = t->n - 1; /* a shorter last row */
-        break;
-    }
-    t->sel = s;
-    int row = s / COLS;
-    if (row < t->first) t->first = row;
-    if (row >= t->first + ROWS) t->first = row - ROWS + 1;
+static void move_shelf(Tab *t, int button) {
+    if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT && t->sel > 0) t->sel--, g_flip_to = 0;
+    if (button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT && t->sel + 1 < t->n) t->sel++, g_flip_to = 0;
 }
 
 static int key_to_button(SDL_Keycode k) {
@@ -584,6 +829,7 @@ static int key_to_button(SDL_Keycode k) {
     case SDLK_RETURN: return SDL_CONTROLLER_BUTTON_A;
     case SDLK_ESCAPE: return SDL_CONTROLLER_BUTTON_B;
     case SDLK_r: return SDL_CONTROLLER_BUTTON_Y;
+    case SDLK_f: return SDL_CONTROLLER_BUTTON_X;
     case SDLK_q: return SDL_CONTROLLER_BUTTON_LEFTSHOULDER;
     case SDLK_e: return SDL_CONTROLLER_BUTTON_RIGHTSHOULDER;
     default: return -1;
@@ -602,6 +848,7 @@ static void open_tab(int t) {
     for (int i = 0; i < tab->n; i++) tab->items[i].asked = tab->items[i].tex != NULL;
     if (tab->kind == TAB_DOWNLOADS) load_jobs();
     else load_tab(tab);
+    g_pos = (float)tab->sel, g_flip = g_flip_to = 0;
 }
 
 static void send_game(Detail *d) {
@@ -671,7 +918,7 @@ int main(int argc, char **argv) {
     if (connected) open_tab(0);
 
     Detail detail = {0};
-    int in_detail = 0, dirty = 1, quit = 0, held = -1;
+    int in_detail = 0, dirty = 1, quit = 0, held = -1, moving = 0;
     Uint32 circle_down = 0, last_poll = SDL_GetTicks(), repeat_at = 0;
     while (!quit) {
         if (!connected && dirty) {
@@ -687,7 +934,7 @@ int main(int argc, char **argv) {
         }
         SDL_Event e;
         int button = -1;
-        if (SDL_WaitEventTimeout(&e, 50)) {
+        if (SDL_WaitEventTimeout(&e, moving ? 1 : 50)) {
             if (e.type == SDL_QUIT) quit = 1;
             if (e.type == SDL_CONTROLLERBUTTONDOWN) button = e.cbutton.button;
             if (e.type == SDL_KEYDOWN && !e.key.repeat) button = key_to_button(e.key.keysym.sym);
@@ -725,8 +972,12 @@ int main(int argc, char **argv) {
             }
         } else if (button >= 0) {
             dirty = 1;
-            if (button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER && g_tab > 0) open_tab(g_tab - 1);
-            else if (button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER && g_tab + 1 < g_ntabs) open_tab(g_tab + 1);
+            int shelf = t->kind != TAB_DOWNLOADS;
+            if ((button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER || (shelf && button == SDL_CONTROLLER_BUTTON_DPAD_UP)) && g_tab > 0)
+                open_tab(g_tab - 1);
+            else if ((button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER || (shelf && button == SDL_CONTROLLER_BUTTON_DPAD_DOWN)) &&
+                     g_tab + 1 < g_ntabs)
+                open_tab(g_tab + 1);
             else if (button == SDL_CONTROLLER_BUTTON_Y) {
                 if (load_state() == 0) open_tab(g_tab);
                 else toast(error_text());
@@ -735,7 +986,9 @@ int main(int argc, char **argv) {
                 if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN && g_jobsel + 1 < g_njobs) g_jobsel++;
                 if (button == SDL_CONTROLLER_BUTTON_A) job_action();
             } else if (is_dpad(button)) {
-                move_grid(t, button);
+                move_shelf(t, button);
+            } else if (button == SDL_CONTROLLER_BUTTON_X) {
+                g_flip_to = g_flip_to ? 0 : 180;
             } else if (button == SDL_CONTROLLER_BUTTON_A && t->sel < t->n) {
                 draw_message(ren, "Opening…", t->items[t->sel].title);
                 if (detail.it.tex) SDL_DestroyTexture(detail.it.tex);
@@ -756,13 +1009,15 @@ int main(int argc, char **argv) {
         }
         if (take_covers(ren, in_detail ? &detail.it : NULL)) dirty = 1;
         if (g_toast[0] && now >= g_toast_until) g_toast[0] = 0, dirty = 1;
+        moving = !in_detail && g_tabs[g_tab].kind != TAB_DOWNLOADS && shelf_step(&g_tabs[g_tab]);
+        if (moving) dirty = 1;
         if (!dirty) continue;
         dirty = 0;
 
         SDL_SetRenderDrawColor(ren, BG.r, BG.g, BG.b, 255);
         SDL_RenderClear(ren);
-        draw_header(ren);
         t = &g_tabs[g_tab];
+        if (in_detail || t->kind == TAB_DOWNLOADS) draw_header(ren);
         if (in_detail) {
             draw_detail(ren, &detail);
             draw_legend(ren, detail_sendable(&detail) ? "Cross  Send to PS5     Triangle  Refresh     Circle  Back"
@@ -772,8 +1027,8 @@ int main(int argc, char **argv) {
             draw_legend(ren, "Up/Down  Choose     Cross  Cancel or try again     L1/R1  Console     Hold Circle  Close");
         } else {
             want_visible(t);
-            draw_grid(ren, t);
-            draw_legend(ren, "Cross  Open     L1/R1  Console     Triangle  Reload     Hold Circle  Close");
+            draw_shelf(ren, t);
+            draw_legend(ren, "Left/Right  Browse     L1/R1  Console     Cross  Open     Square  Flip     Triangle  Reload     Hold Circle  Close");
         }
         SDL_RenderPresent(ren);
     }

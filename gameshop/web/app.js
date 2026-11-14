@@ -141,6 +141,17 @@
     });
   };
 
+  // the full-screen shelf (shelf.js), with the helpers it needs from here
+  pages.shelf = function (sysId) {
+    window.GameShelf({
+      api: api, esc: esc, fmtSize: fmtSize, toast: toast, sysOf: sysOf, stateLabel: stateLabel,
+      systems: function () { return state.app.systems; },
+      version: function () { return state.app && state.app.version || ''; },
+      memo: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { } },
+      recall: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+    }, view, sysId);
+  };
+
   pages.departments = function () {
     var groups = {};
     state.app.systems.forEach(function (s) { (groups[s.maker] = groups[s.maker] || []).push(s); });
@@ -499,10 +510,11 @@
     state.route = location.hash;
     $$('#tabs a').forEach(function (a) { a.classList.toggle('active', a.dataset.tab === (r.page === 'dept' || r.page === 'game' ? 'departments' : r.page)); });
     var fn = pages[r.page] || pages.discover;
+    document.body.classList.remove('shelf-on');
     view.innerHTML = '<div class="empty dim">Loading…</div>';
     Promise.resolve(fn(r.arg, r.q)).then(function () {
       window.scrollTo(0, 0);
-      if (state.tv) focusFirst();
+      if (state.tv && r.page !== 'shelf') focusFirst();
     }).catch(function (e) { view.innerHTML = '<div class="empty"><h1>Something went wrong</h1><p>' + esc(e.message) + '</p></div>'; });
   }
   function loadState(refresh) {
@@ -597,7 +609,7 @@
   setView(viewPref, true);
   if (/PlayStation/i.test(navigator.userAgent)) { tv = true; document.documentElement.classList.add('flat'); }   // see .flat in app.css
   if (/[?&]flat=1/.test(location.search)) document.documentElement.classList.add('flat');
-  loadState(true).then(function () { setTV(tv); render(); refreshJobs(); });
+  loadState(true).then(function () { setTV(tv); if (tv && (!location.hash || location.hash === '#/')) location.replace('#/shelf'); render(); refreshJobs(); });
   setInterval(function () { refreshJobs(); }, 2500);
   setInterval(function () { loadState(); }, 20000);
 })();
