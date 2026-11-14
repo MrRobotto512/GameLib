@@ -269,6 +269,7 @@ static int take_covers(SDL_Renderer *ren, Item *detail) {
         if (!it && key > 0 && key / 1000000000L == g_gen && tab < g_ntabs && idx < g_tabs[tab].n) it = &g_tabs[tab].items[idx];
         if (it && s && !it->tex) {
             it->tex = SDL_CreateTextureFromSurface(ren, s);
+            if (it->tex) SDL_SetTextureBlendMode(it->tex, SDL_BLENDMODE_NONE); /* opaque: far cheaper to draw */
             it->tw = s->w;
             it->th = s->h;
             any = 1;
@@ -281,7 +282,7 @@ static int take_covers(SDL_Renderer *ren, Item *detail) {
     return any;
 }
 
-#define SHELF_WIN 8 /* boxes drawn on each side of the selection */
+#define SHELF_WIN 7 /* boxes drawn on each side of the selection */
 
 /* want_visible asks for the covers on the shelf, the selected one last (covers_want serves the
  * newest first), and lets go of textures far from it so memory stays flat however far one goes. */
@@ -319,18 +320,48 @@ static void frame(SDL_Renderer *ren, SDL_Rect r, int w, SDL_Color c) {
     fill(ren, (SDL_Rect){r.x + r.w, r.y, w, r.h}, c);
 }
 
+/* Strings drawn lately, kept as textures: the renderer is software only, and rendering every label
+ * from the font on every frame was most of a frame's time while the shelf slides. */
+#define TEXT_CACHE 96
+static struct {
+    TTF_Font *font;
+    SDL_Color c;
+    char text[200];
+    SDL_Texture *tex;
+    int w, h;
+    Uint32 used;
+} g_text[TEXT_CACHE];
+
 static int draw_text(SDL_Renderer *ren, TTF_Font *font, const char *text, int x, int y, SDL_Color c) {
     if (!text[0]) return 0;
-    SDL_Surface *s = TTF_RenderUTF8_Blended(font, text, c);
-    if (!s) return 0;
-    SDL_Texture *t = SDL_CreateTextureFromSurface(ren, s);
-    int w = s->w;
-    if (t) {
-        SDL_RenderCopy(ren, t, NULL, &(SDL_Rect){x, y, s->w, s->h});
-        SDL_DestroyTexture(t);
+    int slot = -1, old = 0;
+    for (int i = 0; i < TEXT_CACHE; i++) {
+        if (g_text[i].tex && g_text[i].font == font && !memcmp(&g_text[i].c, &c, sizeof c) && !strcmp(g_text[i].text, text)) {
+            slot = i;
+            break;
+        }
+        if (g_text[i].used < g_text[old].used) old = i;
     }
-    SDL_FreeSurface(s);
-    return w;
+    if (slot < 0 || strlen(text) >= sizeof g_text[0].text) {
+        SDL_Surface *s = TTF_RenderUTF8_Blended(font, text, c);
+        if (!s) return 0;
+        SDL_Texture *t = SDL_CreateTextureFromSurface(ren, s);
+        int w = s->w, h = s->h;
+        SDL_FreeSurface(s);
+        if (!t) return 0;
+        if (strlen(text) >= sizeof g_text[0].text) { /* too long to keep: draw it once */
+            SDL_RenderCopy(ren, t, NULL, &(SDL_Rect){x, y, w, h});
+            SDL_DestroyTexture(t);
+            return w;
+        }
+        slot = old;
+        if (g_text[slot].tex) SDL_DestroyTexture(g_text[slot].tex);
+        g_text[slot].font = font, g_text[slot].c = c, g_text[slot].tex = t, g_text[slot].w = w, g_text[slot].h = h;
+        snprintf(g_text[slot].text, sizeof g_text[slot].text, "%s", text);
+    }
+    g_text[slot].used = SDL_GetTicks();
+    SDL_RenderCopy(ren, g_text[slot].tex, NULL, &(SDL_Rect){x, y, g_text[slot].w, g_text[slot].h});
+    return g_text[slot].w;
 }
 
 /* draw_text_fit truncates with an ellipsis so the text fits in max_w pixels. */
@@ -519,22 +550,21 @@ static void draw_box(SDL_Renderer *ren, Item *it, const Tab *t, float bx, float 
     if (sel) { /* the glow round the selected box, in its console's colour */
         P2 p[4];
         for (int i = 0; i < 4; i++) p[i] = project(front[i], bx, bz, ry);
-        for (int g = 3; g >= 1; g--) {
-            P2 q[4];
-            for (int i = 0; i < 4; i++) q[i] = (P2){p[i].x + (i == 0 || i == 3 ? -1 : 1) * g * 9, p[i].y + (i < 2 ? -1 : 1) * g * 9};
-            quad(ren, NULL, q, NULL, (SDL_Color){band.r, band.g, band.b, (Uint8)(34 * (4 - g))});
-        }
+        P2 q[4];
+        for (int i = 0; i < 4; i++) q[i] = (P2){p[i].x + (i == 0 || i == 3 ? -16 : 16), p[i].y + (i < 2 ? -16 : 16)};
+        quad(ren, NULL, q, NULL, (SDL_Color){band.r, band.g, band.b, 90});
         P2 o[4];
         for (int i = 0; i < 4; i++) o[i] = (P2){p[i].x + (i == 0 || i == 3 ? -2.5f : 2.5f), p[i].y + (i < 2 ? -2.5f : 2.5f)};
         quad(ren, NULL, o, NULL, (SDL_Color){235, 235, 240, 220});
     }
-    face_part(ren, front, 0, 0, 1, 1, bx, bz, ry, NULL, NULL, cs);
+    if (!it->tex) face_part(ren, front, 0, 0, 1, 1, bx, bz, ry, NULL, NULL, cs);
     SDL_Color k = {lit, lit, lit, 255};
     if (it->tex) {
         /* the cover fills the face, cropped to it; a square icon (Switch, PS4 packages) sits whole */
         float fa = w / h, ta = (float)it->tw / it->th;
         if (ta > fa * 1.2f) {
             float vh = fa / ta * .95f;
+            face_part(ren, front, 0, 0, 1, 1, bx, bz, ry, NULL, NULL, cs);
             SDL_FPoint uv[4] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
             face_part(ren, front, .025f, .5f - vh / 2, .975f, .5f + vh / 2, bx, bz, ry, it->tex, uv, k);
         } else {
@@ -542,7 +572,7 @@ static void draw_box(SDL_Renderer *ren, Item *it, const Tab *t, float bx, float 
             if (ta > fa) u0 = (1 - fa / ta) / 2, u1 = 1 - u0;
             else v0 = (1 - ta / fa) / 2, v1 = 1 - v0;
             SDL_FPoint uv[4] = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
-            face_part(ren, front, .025f, .018f, .975f, .982f, bx, bz, ry, it->tex, uv, k);
+            face_part(ren, front, 0, 0, 1, 1, bx, bz, ry, it->tex, uv, k); /* the cover is the whole face */
         }
     } else {
         face_part(ren, front, .025f, .018f, .975f, .982f, bx, bz, ry, NULL, NULL, shade(mix(band, BG, 45), lit * 100 / 255));
@@ -551,8 +581,8 @@ static void draw_box(SDL_Renderer *ren, Item *it, const Tab *t, float bx, float 
             draw_wrapped(ren, g_small, it->title, (SDL_Rect){(int)a.x, (int)a.y, (int)(b.x - a.x), (int)(h / 2)}, WHITE);
         }
     }
-    /* the clear plastic: a soft light along the top */
-    face_part(ren, front, 0, 0, 1, .2f, bx, bz, ry, NULL, NULL, (SDL_Color){255, 255, 255, (Uint8)(sel ? 22 : 12)});
+    /* the clear plastic: a soft light along the top of the selected box */
+    if (sel) face_part(ren, front, 0, 0, 1, .2f, bx, bz, ry, NULL, NULL, (SDL_Color){255, 255, 255, 22});
 }
 
 /* where the box at d places from the selection sits (Boxshelf's place(), made continuous so the
@@ -638,17 +668,38 @@ static void draw_shelf_hud(SDL_Renderer *ren, Tab *t, float h) {
     }
 }
 
-static void draw_shelf(SDL_Renderer *ren, Tab *t) {
-    SDL_Color c = t->kind == TAB_RECENT && t->sel < t->n ? t->items[t->sel].color : t->color;
-    if (!c.a) c = GOLD;
-    float h = 470, bw = h * t->ratio;
-    /* the backdrop: the console's colour washing down into black, a halo and a floor glow */
+/* the backdrop: the console's colour washing down into black, a halo and a floor glow. Drawn once
+ * per colour and shape into a texture; each frame only copies it. */
+static void draw_backdrop(SDL_Renderer *ren, SDL_Color c, float bw, float h) {
+    static SDL_Texture *tex;
+    static SDL_Color made;
+    static float made_bw;
+    if (tex && !memcmp(&made, &c, sizeof c) && made_bw == bw) {
+        SDL_RenderCopy(ren, tex, NULL, NULL);
+        return;
+    }
+    if (!tex) {
+        tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, SCREEN_W, SCREEN_H);
+        if (tex) SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_NONE);
+    }
+    if (tex) SDL_SetRenderTarget(ren, tex);
     SDL_Vertex bg[4] = {{{0, 0}, mix(c, BG, 22), {0, 0}}, {{SCREEN_W, 0}, mix(c, BG, 22), {0, 0}},
                         {{SCREEN_W, SCREEN_H}, {4, 4, 8, 255}, {0, 0}}, {{0, SCREEN_H}, {4, 4, 8, 255}, {0, 0}}};
     static const int idx[6] = {0, 1, 2, 0, 2, 3};
     SDL_RenderGeometry(ren, NULL, bg, 4, idx, 6);
     glow_at(ren, SCREEN_W / 2, SHELF_Y, (int)(bw * 2.6f), (int)(h * 1.7f), (SDL_Color){c.r, c.g, c.b, 90});
     glow_at(ren, SCREEN_W / 2, SHELF_Y + (int)(h / 2) + 24, (int)(bw * 2.4f), 70, (SDL_Color){c.r, c.g, c.b, 150});
+    if (!tex) return;
+    SDL_SetRenderTarget(ren, NULL);
+    made = c, made_bw = bw;
+    SDL_RenderCopy(ren, tex, NULL, NULL);
+}
+
+static void draw_shelf(SDL_Renderer *ren, Tab *t) {
+    SDL_Color c = t->kind == TAB_RECENT && t->sel < t->n ? t->items[t->sel].color : t->color;
+    if (!c.a) c = GOLD;
+    float h = 470, bw = h * t->ratio;
+    draw_backdrop(ren, c, bw, h);
     if (!t->loaded || !t->n) {
         const char *msg = t->loaded ? "Nothing here yet." : "Couldn't load this shelf. Triangle: try again.";
         draw_text(ren, g_font, msg, SCREEN_W / 2 - text_w(g_font, msg) / 2, SHELF_Y, DIM);
@@ -1031,6 +1082,14 @@ int main(int argc, char **argv) {
             draw_legend(ren, "Left/Right  Browse     L1/R1  Console     Cross  Open     Square  Flip     Triangle  Reload     Hold Circle  Close");
         }
         SDL_RenderPresent(ren);
+        if (moving) { /* how long a frame takes while the shelf slides, once in a while in the log */
+            static Uint32 frames, since;
+            if (!frames) since = now;
+            if (++frames == 120) {
+                fprintf(stderr, "Game Shop: shelf %.1f ms a frame\n", (SDL_GetTicks() - since) / 120.0);
+                frames = 0;
+            }
+        }
     }
     SDL_Quit();
     return 0;
