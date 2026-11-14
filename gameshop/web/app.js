@@ -141,6 +141,17 @@
     });
   };
 
+  // the full-screen shelf (shelf.js), with the helpers it needs from here
+  pages.shelf = function (sysId) {
+    window.GameShelf({
+      api: api, esc: esc, fmtSize: fmtSize, toast: toast, sysOf: sysOf, stateLabel: stateLabel,
+      systems: function () { return state.app.systems; },
+      version: function () { return state.app && state.app.version || ''; },
+      memo: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { } },
+      recall: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+    }, view, sysId);
+  };
+
   pages.departments = function () {
     var groups = {};
     state.app.systems.forEach(function (s) { (groups[s.maker] = groups[s.maker] || []).push(s); });
@@ -353,6 +364,7 @@
       '<label>RetroArch title folder on the PS5</label><input id="ra-root" value="' + esc(cfg.ra_root) + '">' +
       '<label><input type="checkbox" id="skip" ' + (cfg.skip_existing ? 'checked' : '') + ' style="width:auto"> Skip files already on the PS5 with the same size</label>' +
       '<label><input type="checkbox" id="art" ' + (cfg.art_enabled ? 'checked' : '') + ' style="width:auto"> Fetch cover art from libretro-thumbnails (this PC needs internet)</label>' +
+      '<div class="inline"><button class="btn small" id="backs-btn" data-nav>Download back covers</button><span class="muted" id="backs-status" style="font-size:13px"></span></div>' +
       '<label>Show games as</label><select id="view-sel"><option value="box"' + (state.view === 'media' ? '' : ' selected') + '>The retail box</option><option value="media"' + (state.view === 'media' ? ' selected' : '') + '>The cartridge or disc</option></select>' +
       '<p><button class="btn" id="opts-save" data-nav>Save options</button></p></div>' +
       '<div class="card form"><h2 style="margin-top:0">Sources <span class="count">folders on this PC</span></h2>' +
@@ -403,6 +415,26 @@
     });
     $('#ps5-open').addEventListener('click', function () { api('/api/ps5/open', { method: 'POST' }).then(function (r) { toast('Opening ' + r.url + ' on the PS5.'); }).catch(function (e) { toast(e.message, 8000); }); });
     $('#ps5-scan').addEventListener('click', function () { toast('Scanning the network…', 8000); api('/api/ps5/scan', { method: 'POST', body: {} }).then(function (r) { if (!r.found.length) return toast('No PS5 answered on ' + r.prefix + '.x'); $('#ps5-host').value = r.found[0]; toast('Found ' + r.found.join(', ')); }); });
+    // back covers: LaunchBox's database once, then a back for every game (the shelf shows them when a box is flipped)
+    function backsText(b) {
+      var f = b.fetch || {};
+      if (b.state === 'downloading') return 'Downloading the LaunchBox game database… ' + b.pct + '%';
+      if (b.state === 'indexing') return 'Reading the LaunchBox game database…';
+      if (b.state === 'failed') return 'Failed: ' + b.error;
+      if (f.running) return 'Fetching backs: ' + f.done + ' / ' + f.total + ' (' + f.found + ' found)';
+      if (b.state === 'ready') return b.have + ' games have a back cover. Press again for new games.';
+      return 'From the LaunchBox Games Database: a one-time 110 MB download, then a back for each game.';
+    }
+    function backsPoll() {
+      var el = $('#backs-status'); if (!el) return;
+      api('/api/art/backs').then(function (b) {
+        if (!$('#backs-status')) return;
+        $('#backs-status').textContent = backsText(b);
+        if (b.state === 'downloading' || b.state === 'indexing' || (b.fetch && b.fetch.running)) setTimeout(backsPoll, 1500);
+      }).catch(function () { });
+    }
+    backsPoll();
+    $('#backs-btn').addEventListener('click', function () { api('/api/art/backs', { method: 'POST', body: {} }).then(function () { setTimeout(backsPoll, 300); }).catch(function (e) { toast(e.message, 6000); }); });
     $('#opts-save').addEventListener('click', function () { api('/api/config', { method: 'PUT', body: { ra_root: $('#ra-root').value.trim(), skip_existing: $('#skip').checked, art_enabled: $('#art').checked } }).then(function () { toast('Saved'); return loadState(); }).then(render); });
     $('#dest-save').addEventListener('click', function () { var d = {}; $$('[data-dest]').forEach(function (i) { if (i.value.trim()) d[i.dataset.dest] = i.value.trim(); }); api('/api/config', { method: 'PUT', body: { destinations: d } }).then(function () { toast('Saved'); return loadState(); }).then(render); });
     $('#src-add').addEventListener('click', function () { api('/api/sources', { method: 'POST', body: { path: $('#src-path').value.trim(), system: $('#src-sys').value } }).then(function () { toast('Added. Scanning…'); return loadState(); }).then(render).catch(function (e) { toast(e.message); }); });
@@ -499,10 +531,11 @@
     state.route = location.hash;
     $$('#tabs a').forEach(function (a) { a.classList.toggle('active', a.dataset.tab === (r.page === 'dept' || r.page === 'game' ? 'departments' : r.page)); });
     var fn = pages[r.page] || pages.discover;
+    document.body.classList.remove('shelf-on');
     view.innerHTML = '<div class="empty dim">Loading…</div>';
     Promise.resolve(fn(r.arg, r.q)).then(function () {
       window.scrollTo(0, 0);
-      if (state.tv) focusFirst();
+      if (state.tv && r.page !== 'shelf') focusFirst();
     }).catch(function (e) { view.innerHTML = '<div class="empty"><h1>Something went wrong</h1><p>' + esc(e.message) + '</p></div>'; });
   }
   function loadState(refresh) {
@@ -597,7 +630,7 @@
   setView(viewPref, true);
   if (/PlayStation/i.test(navigator.userAgent)) { tv = true; document.documentElement.classList.add('flat'); }   // see .flat in app.css
   if (/[?&]flat=1/.test(location.search)) document.documentElement.classList.add('flat');
-  loadState(true).then(function () { setTV(tv); render(); refreshJobs(); });
+  loadState(true).then(function () { setTV(tv); if (tv && (!location.hash || location.hash === '#/')) location.replace('#/shelf'); render(); refreshJobs(); });
   setInterval(function () { refreshJobs(); }, 2500);
   setInterval(function () { loadState(); }, 20000);
 })();

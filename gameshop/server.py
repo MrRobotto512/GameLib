@@ -18,7 +18,7 @@ from typing import Any, Iterator
 
 import anyio
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
@@ -30,6 +30,7 @@ from .indexer import Indexer, scan_all
 from .metadata import MetadataStore
 from .switchdb import SwitchTitleDB
 from .gametdb import GameTDB, SYSTEMS as GAMETDB_SYSTEMS, accept as gametdb_accept
+from .launchbox import LaunchBox
 from .covers import patch_site_icon_urls, serial_cover_urls
 from .photos import ConsolePhotos
 from .paths import resource_dir
@@ -69,6 +70,11 @@ class Agent:
         self.art.fallbacks.append(ArtSource(self.gametdb.urls, GAMETDB_SYSTEMS - {"switch"}, accept=gametdb_accept))
         self.art.fallbacks.append(serial_cover_urls)
         self.art.fallbacks.append(patch_site_icon_urls)
+        # back covers: LaunchBox's database, downloaded when Settings asks for it
+        self.launchbox = LaunchBox(self.data_dir / "launchbox", hint=lambda it: self.metadata.thumb_names(it))
+        self.art.backs.append(self.launchbox.back_urls)
+        self.launchbox.on_ready = self.fetch_backs
+        self.backs = {"running": False, "done": 0, "total": 0, "found": 0}
         self.metadata.providers.append(lambda it: self.switchdb.facts(it) if it["system"] == "switch" else None)
         self.art.name_hint = self.metadata.thumb_names
         self._forget_misses_once()                     # matching improved: retry everything once per version
@@ -155,6 +161,27 @@ class Agent:
         for i in ids:
             self.db.execute("DELETE FROM art WHERE status='missing' AND (item_id=? OR item_id LIKE ?)", (i, i + ":%"))
             self.db.execute("DELETE FROM metadata WHERE status='missing' AND item_id=?", (i,))
+
+    def fetch_backs(self) -> None:
+        """Download the back cover of every game in this PC's library that has none yet (the
+        LaunchBox index is ready by now). Progress in self.backs."""
+        if self.backs["running"]:
+            return
+        import concurrent.futures as cf
+        items = [it for it in self.db.items() if not self.art.path_for(it["id"], "back").exists()]
+        self.backs = {"running": True, "done": 0, "total": len(items), "found": 0}
+
+        def one(it):
+            try:
+                if self.art.get(it, kind="back"):
+                    self.backs["found"] += 1
+            finally:
+                self.backs["done"] += 1
+        try:
+            with cf.ThreadPoolExecutor(max_workers=4) as ex:
+                list(ex.map(one, items))
+        finally:
+            self.backs["running"] = False
 
     def _switch_ready(self) -> None:
         """The title database finished downloading: fetch art and facts for the Switch items now."""
@@ -583,6 +610,20 @@ def create_app(agent: Agent | None = None) -> FastAPI:
         media = "image/jpeg" if magic[:2] == b"\xff\xd8" else "image/webp" if magic[:3] == b"RIF" else "image/png"
         return FileResponse(p, media_type=media, headers={"Cache-Control": "public, max-age=86400"})
 
+    # ---- back covers ----------------------------------------------------------------------
+    @app.get("/api/art/backs")
+    def backs_status():
+        have = sum(1 for it in agent.db.items() if agent.art.path_for(it["id"], "back").exists())
+        return {**agent.launchbox.status(), "fetch": agent.backs, "have": have}
+
+    @app.post("/api/art/backs")
+    def backs_start(body: dict[str, Any] | None = None):
+        """Download LaunchBox's database (once) and then the back cover of every game."""
+        if not agent.store.config.art_enabled:
+            raise HTTPException(400, "Cover art is turned off in Settings.")
+        agent.launchbox.start(refresh=bool((body or {}).get("refresh")))
+        return backs_status()
+
     # ---- jobs ------------------------------------------------------------------------
     @app.get("/api/jobs")
     def jobs():
@@ -877,6 +918,13 @@ def create_app(agent: Agent | None = None) -> FastAPI:
 
     @app.get("/")
     def index():
-        return FileResponse(WEB / "index.html", headers={"Cache-Control": "no-cache"})
+        # the scripts and styles are linked with a stamp of their own, so an update (or an edited
+        # file) reaches browsers that cached the old ones, the PS5's included
+        html = (WEB / "index.html").read_text(encoding="utf-8")
+        for name in ("app.css", "shelf.css", "shelf.js", "app.js"):
+            f = WEB / name
+            stamp = f"{__version__}.{int(f.stat().st_mtime)}" if f.exists() else __version__
+            html = html.replace(f'/static/{name}"', f'/static/{name}?v={stamp}"')
+        return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
     return app

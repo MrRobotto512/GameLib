@@ -199,6 +199,14 @@ Discover ─ hero (featured / recently added / "continue downloading") + shelves
 - **Fallback** when no art is found: a generated cover with the title in large type over a
   gradient taken from the console's brand colours, inside the matching case template, so the
   shelf still looks finished (ProsperoStore does the same with icon colours).
+- **The shelf** (web `#/shelf`, and the PS5 app's main screen) follows Boxshelf's coverflow
+  (GPL-3.0, credited in the README): the selected box forward and turned 22°, the rest turned 60°
+  in a tight stack so their spines read like a shelf, the box shape per console from its case
+  (DVD, jewel case, wide N64 / SNES boxes, Switch). The web version is Boxshelf's case markup and
+  windowed carousel (only boxes near the selection exist) in plain ES2017; the PS5 app projects the
+  same boxes itself and draws them with `SDL_RenderGeometry`, as its SDL has only the software
+  renderer. The page's script and style links carry a version stamp, so an update reaches browsers
+  that cached the old files.
 - **Metadata** (year, publisher, genre, players, description) comes from libretro's database
   files (`.rdb`) and the same optional scrapers.
 

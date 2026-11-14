@@ -38,15 +38,28 @@ python -m venv .venv
 
 The store opens at `http://127.0.0.1:8750/`. On the PS5's browser (or a phone) use the LAN address
 the console prints at start-up, for example `http://192.168.1.20:8750/`; the PS5 browser switches
-to TV mode by itself.
+to TV mode by itself and opens on the shelf.
+
+**The shelf** (`#/shelf`, the *Shelf* tab) shows each console as a full-screen 3D shelf of boxes, the
+selected one facing you and the rest standing spine-out on either side, in the style of
+[Boxshelf](https://github.com/sassiestrhihno/boxshelf-source). ← → browse, ↑ ↓ (L1 / R1, or Q / E)
+change console, Enter opens the game's page, F flips the box, Esc goes back to the store. The mouse
+wheel browses too, and clicking a box goes to it (or flips it, once it's selected).
+
+**Back covers.** Settings → **Download back covers** fetches the
+[LaunchBox Games Database](https://gamesdb.launchbox-app.com/) once (a 110 MB download, boiled down to
+a small index of its "Box - Back" scans in `%LOCALAPPDATA%\GameShop\launchbox`), then the back of
+every game in the library. A flipped box on the shelf (web and PS5 app) shows it. Press the button
+again after adding games; the database itself is fetched again after two months.
 
 **Game Shop on the PS5 home screen.** Settings has **Put a Game Shop tile on the PS5**: it copies
 the Game Shop PS5 app over FTP to `/data/homebrew/PPSA87500/`, with this PC's store address in
 `url.txt` beside it. Shadow Mount+ adds it to the home screen on its next scan (every 15 s, but not
 while a game or app is open). The tile opens the store as an app of its own, full screen and driven
-by the controller like FLEX: a cover grid per console (L1/R1 to change console, the first page is
-*Recently added*), a game page where Cross sends the game to the PS5, and *Downloads* with each
-copy's progress (Cross cancels, or retries a failed one). Triangle reloads, holding Circle closes it.
+by the controller like FLEX: the same 3D shelf per console (Left / Right browse, L1 / R1 or Up / Down
+change console, the first shelf is *Recently added*; Square flips the box), a game page where Cross
+sends the game to the PS5, and *Downloads* with each copy's progress (Cross cancels, or retries a
+failed one). Triangle reloads, holding Circle closes it.
 It asks this PC for covers as small JPEGs (`/art/<id>?w=300`) and keeps them in `/data/gameshop/`,
 along with its log. Press the button again after updating Game Shop or if this PC's address changes.
 **Open on the PS5 now** sends a payload to the ELF loader that opens the web store in the PS5
@@ -148,3 +161,11 @@ projects this builds on (etaHEN, ps5upload, PS5_RetroArch, ProsperoStore, ps5-pa
 
 Nothing here jailbreaks a console, and nothing talks to the internet except optional cover-art
 downloads from GitHub.
+
+## License
+
+Game Shop is free software under the [GNU GPL v3.0](LICENSE). The shelf (`gameshop/web/shelf.js`,
+`shelf.css`, and its layout in the PS5 app's `ps5/app/main.c`) is adapted from
+[Boxshelf](https://github.com/sassiestrhihno/boxshelf-source) by sassiestrhihno (GPL-3.0). The PS5
+app is built with the GPL-3.0 native-app kit from Forwarder Manager; cJSON is MIT, the DejaVu fonts
+have their own free license.

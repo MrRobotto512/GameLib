@@ -92,7 +92,9 @@ def test_end_to_end(tmp_path: Path, monkeypatch):
         assert _wait_job(c, job["id"])["state"] == "done"
         names = [e["name"] for e in c.get("/api/ps5/ls", params={"path": "/data/homebrew/PPSA99169/system"}).json()]
         assert names == ["bios.bin"]
-        assert c.get("/").status_code == 200 and c.get("/static/app.js").status_code == 200
+        page = c.get("/")
+        assert page.status_code == 200 and c.get("/static/app.js").status_code == 200
+        assert "/static/shelf.js?v=" in page.text and "/static/app.css?v=" in page.text   # stamped, so updates reach cached browsers
         agent.worker.stop()
 
 
