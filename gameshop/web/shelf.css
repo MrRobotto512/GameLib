@@ -69,6 +69,8 @@ body.shelf-on .view { padding: 0; max-width: none; }
 .shelf-app .back-in { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; padding: 10%; background: linear-gradient(180deg, #1b1c24, #0d0e13); font-size: calc(var(--bw)*.06); }
 .shelf-app .back-in span { color: var(--ink-dim); font-size: .8em; }
 .shelf-app .f-back > img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.shelf-app .f-back.sq { display: grid; place-items: center; background: #111; }
+.shelf-app .f-back.sq > img { height: auto; object-fit: contain; }
 .shelf-app .f-back.has .back-in { display: none; }
 .shelf-app .f-left, .shelf-app .f-right { top: 0; height: 100%; width: var(--bd); left: calc(50% - var(--bd)/2); }
 .shelf-app .f-left { transform: rotateY(-90deg) translateZ(calc(var(--bw)/2)); background: var(--case); display: flex; flex-direction: column; align-items: center; overflow: hidden; }

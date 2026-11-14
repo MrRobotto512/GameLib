@@ -19,6 +19,7 @@ typedef struct {
     long key;
     char id[128];
     int width, back;
+    long ver;
 } Job;
 
 typedef struct {
@@ -40,7 +41,7 @@ static void cache_path(const Job *j, char *out, size_t n) {
     size_t i = 0;
     for (const char *c = j->id; *c && i < sizeof safe - 1; c++) safe[i++] = isalnum((unsigned char)*c) ? *c : '_';
     safe[i] = 0;
-    snprintf(out, n, CACHE_DIR "/%s.w%d%s.img", safe, j->width, j->back ? ".back" : "");
+    snprintf(out, n, CACHE_DIR "/%s.v%ld.w%d%s.img", safe, j->ver, j->width, j->back ? ".back" : "");
 }
 
 static char *read_file(const char *p, size_t *len) {
@@ -116,7 +117,7 @@ void covers_init(const char *h, int p) {
     for (int i = 0; i < WORKERS; i++) SDL_DetachThread(SDL_CreateThread(worker, "gs-covers", (void *)(intptr_t)i));
 }
 
-void covers_want(long key, const char *item_id, int width, int back) {
+void covers_want(long key, const char *item_id, int width, int back, long ver) {
     SDL_LockMutex(mu);
     if (nwanted == capwanted) {
         Job *g = realloc(wanted, (capwanted = capwanted * 2 + 64) * sizeof *wanted);
@@ -130,6 +131,7 @@ void covers_want(long key, const char *item_id, int width, int back) {
     j->key = key;
     j->width = width;
     j->back = back;
+    j->ver = ver;
     snprintf(j->id, sizeof j->id, "%s", item_id);
     SDL_CondSignal(cond);
     SDL_UnlockMutex(mu);

@@ -42,6 +42,7 @@ from .transfer import TransferWorker
 WEB = resource_dir() / "web"
 CHUNK = 1 << 20
 REMOTE_SEP = "~"          # remote item ids look like "<peer key>~<item id>"
+MATCHING = 1              # raise when games are matched to covers / facts better: misses are retried once
 
 
 class Agent:
@@ -72,12 +73,16 @@ class Agent:
         self.art.fallbacks.append(patch_site_icon_urls)
         # back covers: LaunchBox's database, downloaded when Settings asks for it
         self.launchbox = LaunchBox(self.data_dir / "launchbox", hint=lambda it: self.metadata.thumb_names(it))
-        self.art.backs.append(self.launchbox.back_urls)
+        self.art.backs.append(self.launchbox.urls)
         self.launchbox.on_ready = self.fetch_backs
+        self.shapes: dict[str, float] = {}             # system id -> its boxes' width / height, measured
+        threading.Thread(target=self._tidy_scans, name="gameshop-shapes", daemon=True).start()
+        if self.launchbox.outdated():                  # an older version's index (backs only): build
+            self.launchbox.start(refresh=True)         # today's, then fetch the fronts it adds
         self.backs = {"running": False, "done": 0, "total": 0, "found": 0}
         self.metadata.providers.append(lambda it: self.switchdb.facts(it) if it["system"] == "switch" else None)
         self.art.name_hint = self.metadata.thumb_names
-        self._forget_misses_once()                     # matching improved: retry everything once per version
+        self._forget_misses_once()                     # matching improved: retry everything once
         self._refetch_once("switch", "gametdb-1")      # Switch boxes used to be eShop icons
         self.worker = TransferWorker(self.db, lambda: self.client(), self.file_url,
                                      skip_existing=lambda: self.store.config.skip_existing, after_ftp=self._after_ftp)
@@ -86,6 +91,7 @@ class Agent:
                                    my_ip=lambda: self.local_ip_for(self.config.ps5_host))
         self._health: Health | None = None
         self._health_at = 0.0
+        self._health_lock = threading.Lock()
         self._remote_cache: dict[str, tuple[float, dict[str, int]]] = {}
         self._scan_lock = threading.Lock()
         self.scanning = False
@@ -113,10 +119,24 @@ class Agent:
         return f"http://{self.local_ip_for(self.config.ps5_host)}:{self.config.port}/files/{item_id}/{index}"
 
     def health(self, refresh: bool = False) -> Health:
-        if refresh or self._health is None or time.time() - self._health_at > 20:
-            self._health = PS5Client(self.config.ps5_host, self.config.ps5_ftp_port).health()
-            self._health_at = time.time()
+        """What the PS5 answers to. Asked for with refresh (or the first time), it is looked at now;
+        otherwise the last answer comes back at once and, when it is older than 20 s, a fresh look
+        runs in the background: the store's pages and the PS5 app never wait on a console that is
+        off or slow."""
+        if refresh or self._health is None:
+            self._look_at_ps5()
+        elif time.time() - self._health_at > 20 and self._health_lock.acquire(blocking=False):
+            def later():
+                try:
+                    self._look_at_ps5()
+                finally:
+                    self._health_lock.release()
+            threading.Thread(target=later, name="gameshop-health", daemon=True).start()
         return self._health
+
+    def _look_at_ps5(self) -> None:
+        self._health = PS5Client(self.config.ps5_host, self.config.ps5_ftp_port).health()
+        self._health_at = time.time()
 
     def store_url(self) -> str:
         """The store's address as the PS5 reaches it."""
@@ -128,9 +148,14 @@ class Agent:
 
     # ---- library: local + peers ----------------------------------------------------
     def _forget_misses_once(self) -> None:
-        from . import __version__
-        marker = self.data_dir / f".misses-cleared-{__version__}"
+        """Forget which covers and facts were not found, once for each improvement in how games
+        are matched (MATCHING), not for every release: looking them all up again takes minutes of
+        downloads that slow the store down each time."""
+        marker = self.data_dir / f".matching-{MATCHING}"
         if marker.exists():
+            return
+        if MATCHING == 1 and (self.data_dir / ".misses-cleared-0.1.16").exists():     # 0.1.16 just did
+            marker.write_text("")
             return
         self.db.execute("DELETE FROM art WHERE status='missing'")
         self.db.execute("DELETE FROM metadata WHERE status='missing'")
@@ -163,16 +188,18 @@ class Agent:
             self.db.execute("DELETE FROM metadata WHERE status='missing' AND item_id=?", (i,))
 
     def fetch_backs(self) -> None:
-        """Download the back cover of every game in this PC's library that has none yet (the
-        LaunchBox index is ready by now). Progress in self.backs."""
+        """Download the box scans of every game in this PC's library that has none yet: its back,
+        and the front of the same box (the LaunchBox index is ready by now). Progress in self.backs."""
         if self.backs["running"]:
             return
         import concurrent.futures as cf
-        items = [it for it in self.db.items() if not self.art.path_for(it["id"], "back").exists()]
+        items = [it for it in self.db.items()
+                 if not (self.art.path_for(it["id"], "back").exists() and self.art.path_for(it["id"], "front").exists())]
         self.backs = {"running": True, "done": 0, "total": len(items), "found": 0}
 
         def one(it):
             try:
+                self.art.get(it, kind="front")
                 if self.art.get(it, kind="back"):
                     self.backs["found"] += 1
             finally:
@@ -182,6 +209,38 @@ class Agent:
                 list(ex.map(one, items))
         finally:
             self.backs["running"] = False
+        self.measure_shapes()
+
+    def _tidy_scans(self) -> None:
+        self.measure_shapes()
+        marker = self.data_dir / ".scans-shrunk-1"
+        if not marker.exists():                        # 0.1.16 kept back covers at full size: gigabytes
+            self.art.shrink_scans()
+            marker.write_text("")
+
+    def measure_shapes(self) -> None:
+        """Each console's box shape (width / height), taken from the box scans this library has:
+        the middle one of up to 40 fronts. The shelf draws a console's cases in that shape, so a
+        cover fills its case instead of being cropped or boxed in (Game Boy boxes are square, DS
+        cases wider than tall). A console with fewer than five scans keeps the built-in shape."""
+        from PIL import Image
+        shapes: dict[str, float] = {}
+        for s in self.systems.all():
+            found: list[float] = []
+            for it in self.db.items(system=s.id):
+                p = self.art.path_for(it["id"], "front")
+                if not p.exists():
+                    continue
+                try:
+                    with Image.open(p) as im:
+                        found.append(im.width / im.height)
+                except (OSError, ValueError, ZeroDivisionError):
+                    continue
+                if len(found) >= 40:
+                    break
+            if len(found) >= 5:
+                shapes[s.id] = round(min(max(sorted(found)[len(found) // 2], 0.5), 1.5), 3)
+        self.shapes = shapes
 
     def _switch_ready(self) -> None:
         """The title database finished downloading: fetch art and facts for the Switch items now."""
@@ -291,6 +350,7 @@ class Agent:
         dest = self.dest_for(it["system"])
         route = s.route if s else "none"
         remote = bool(it.get("peer"))
+        art_v = int(it.get("art_v") or 0) if remote else self.art.version(it["id"])
         view = {
             **it,
             "system_name": s.name if s else it["system"],
@@ -298,7 +358,8 @@ class Agent:
             "color": s.color if s else "#888",
             "route": route,
             "dest": dest,
-            "art": bool(it.get("art")) if remote else self.art.path_for(it["id"]).exists(),
+            "art": bool(it.get("art")) if remote else bool(art_v),
+            "art_v": art_v,                             # changes when the cover does: apps key their caches on it
             "primary": posixpath.basename(it["rel"]),
             "core": s.core if s else "",
             "facts": (it.get("facts") or {}) if remote else (self.metadata.get(it, fetch=with_status) or {}),
@@ -479,7 +540,7 @@ def create_app(agent: Agent | None = None) -> FastAPI:
                 "id": s.id, "name": s.name, "maker": s.maker, "route": s.route, "case": s.case, "color": s.color,
                 "note": s.note, "dest": agent.dest_for(s.id), "default_dest": s.resolve_dest(agent.config.ra_root),
                 "count": counts.get(s.id, 0), "exts": list(s.exts), "core": s.core,
-                "photo": bool(s.photo), "photo_by": s.photo_by,
+                "photo": bool(s.photo), "photo_by": s.photo_by, "ratio": agent.shapes.get(s.id, 0),
             })
         h = agent.health(refresh=bool(refresh))
         return {
@@ -497,7 +558,7 @@ def create_app(agent: Agent | None = None) -> FastAPI:
 
     @app.get("/api/peer/items")
     def peer_items():
-        return [{**it, "art": agent.art.path_for(it["id"]).exists(), "facts": agent.metadata.get(it, fetch=False) or {}} for it in agent.db.items()]
+        return [{**it, "art": agent.art.has(it["id"]), "art_v": agent.art.version(it["id"]), "facts": agent.metadata.get(it, fetch=False) or {}} for it in agent.db.items()]
 
     @app.post("/api/peers/refresh")
     def peers_refresh():
@@ -582,8 +643,9 @@ def create_app(agent: Agent | None = None) -> FastAPI:
 
     @app.get("/art/{item_id}")
     async def art(item_id: str, kind: str = "box", w: int = 0):
-        """A game's art; w (64-800) asks for a JPEG that wide, for the PS5 app's grid."""
-        w = min(max(w, 64), 800) if w else 0
+        """A game's art; w (64-1200) asks for a JPEG that wide. A back cover asked for by width comes
+        in its front's shape, so both sides of the box are drawn alike."""
+        w = min(max(w, 64), 1200) if w else 0
         peer_key, local = agent.split_id(item_id)
         if peer_key:
             peer = agent.peers.get(peer_key)
@@ -602,7 +664,8 @@ def create_app(agent: Agent | None = None) -> FastAPI:
             raise HTTPException(404)
         if w:
             try:
-                p = await anyio.to_thread.run_sync(agent.art.thumb, p, w, limiter=ART_LIMITER)
+                shape = agent.art.shape(local) if kind == "back" else 0
+                p = await anyio.to_thread.run_sync(agent.art.thumb, p, w, shape, limiter=ART_LIMITER)
             except OSError:
                 pass                       # not an image Pillow reads: send it as it is
         with open(p, "rb") as f:
@@ -613,7 +676,7 @@ def create_app(agent: Agent | None = None) -> FastAPI:
     # ---- back covers ----------------------------------------------------------------------
     @app.get("/api/art/backs")
     def backs_status():
-        have = sum(1 for it in agent.db.items() if agent.art.path_for(it["id"], "back").exists())
+        have = agent.db.one("SELECT count(*) AS n FROM art WHERE status='ok' AND item_id LIKE '%:back'")["n"]
         return {**agent.launchbox.status(), "fetch": agent.backs, "have": have}
 
     @app.post("/api/art/backs")

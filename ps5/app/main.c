@@ -31,6 +31,8 @@
 #define MARGIN_X 75
 #define GRID_TOP 190
 #define THUMB_W 300  /* cover width asked of the PC for the shelf */
+#define SHARP_W 720  /* and for the selected box, drawn large: its front and its back */
+#define SHARP_KEY (1L << 60) /* added to an item's key: its cover at SHARP_W */
 #define DETAIL_W 640 /* and for a game page */
 #define HOLD_EXIT_MS 1000
 
@@ -42,9 +44,9 @@ typedef struct {
     char id[128], title[192], sub[160], sys[32];
     SDL_Color color;
     int art;
-    long key;
-    SDL_Texture *tex, *spine, *back; /* the cover, the title as the spine prints it, the back cover */
-    int tw, th, asked, sw, sh, back_state; /* back_state: 0 not asked, 1 asked, 2 there is none */
+    long key, art_v; /* art_v changes when the PC has another cover for the game */
+    SDL_Texture *tex, *spine, *back, *sharp; /* the cover, the title as the spine prints it, the back cover, the cover at full size */
+    int tw, th, asked, sw, sh, back_state, bkw, bkh, sharp_state, shw, shh; /* *_state: 0 not asked, 1 asked, 2 there is none */
 } Item;
 
 enum { TAB_RECENT, TAB_SYSTEM, TAB_DOWNLOADS };
@@ -149,6 +151,7 @@ static void parse_item(cJSON *o, Item *it) {
     snprintf(it->sys, sizeof it->sys, "%s", jstr(o, "system"));
     it->color = parse_color(jstr(o, "color"));
     it->art = cJSON_IsTrue(cJSON_GetObjectItem(o, "art"));
+    it->art_v = (long)jnum(o, "art_v");
     char size[32];
     human_size(jnum(o, "size"), size, sizeof size);
     int year = (int)jnum(cJSON_GetObjectItem(o, "facts"), "year");
@@ -161,6 +164,7 @@ static void free_items(Tab *t) {
         if (t->items[i].tex) SDL_DestroyTexture(t->items[i].tex);
         if (t->items[i].spine) SDL_DestroyTexture(t->items[i].spine);
         if (t->items[i].back) SDL_DestroyTexture(t->items[i].back);
+        if (t->items[i].sharp) SDL_DestroyTexture(t->items[i].sharp);
     }
     free(t->items);
     t->items = NULL;
@@ -199,7 +203,8 @@ static int load_state(void) {
         snprintf(t->id, sizeof t->id, "%s", jstr(s, "id"));
         snprintf(t->name, sizeof t->name, "%s", jstr(s, "name"));
         t->color = parse_color(jstr(s, "color"));
-        t->ratio = case_ratio(jstr(s, "case"));
+        t->ratio = (float)jnum(s, "ratio"); /* measured by the PC from the library's own box scans */
+        if (t->ratio < .4f) t->ratio = case_ratio(jstr(s, "case"));
     }
     g_tabs[g_ntabs++] = (Tab){.kind = TAB_DOWNLOADS, .name = "Downloads", .color = GOLD, .ratio = .72f};
     if (g_tab >= g_ntabs) g_tab = 0;
@@ -269,8 +274,25 @@ static int take_covers(SDL_Renderer *ren, Item *detail) {
             long k = -key, tab = (k / 100000L) % 10000L, idx = k % 100000L;
             if (k / 1000000000L == g_gen && tab < g_ntabs && idx < g_tabs[tab].n) {
                 Item *b = &g_tabs[tab].items[idx];
-                if (s && !b->back && (b->back = SDL_CreateTextureFromSurface(ren, s))) SDL_SetTextureBlendMode(b->back, SDL_BLENDMODE_NONE);
+                if (s && !b->back && (b->back = SDL_CreateTextureFromSurface(ren, s))) {
+                    SDL_SetTextureBlendMode(b->back, SDL_BLENDMODE_NONE);
+                    b->bkw = s->w, b->bkh = s->h;
+                }
                 if (!s) b->back_state = 2;
+                any = 1;
+            }
+            if (s) SDL_FreeSurface(s);
+            continue;
+        }
+        if (key >= SHARP_KEY) { /* the selected box's cover at full size */
+            long k = key - SHARP_KEY, tab = (k / 100000L) % 10000L, idx = k % 100000L;
+            if (k / 1000000000L == g_gen && tab < g_ntabs && idx < g_tabs[tab].n) {
+                Item *b = &g_tabs[tab].items[idx];
+                if (s && !b->sharp && (b->sharp = SDL_CreateTextureFromSurface(ren, s))) {
+                    SDL_SetTextureBlendMode(b->sharp, SDL_BLENDMODE_NONE);
+                    b->shw = s->w, b->shh = s->h;
+                }
+                if (!s) b->sharp_state = 2;
                 any = 1;
             }
             if (s) SDL_FreeSurface(s);
@@ -302,6 +324,7 @@ static void want_visible(Tab *t) {
     int lo = t->sel - SHELF_WIN - 2, hi = t->sel + SHELF_WIN + 2;
     for (int i = 0; i < t->n; i++) {
         Item *it = &t->items[i];
+        if (it->sharp && abs(i - t->sel) > 2) SDL_DestroyTexture(it->sharp), it->sharp = NULL, it->sharp_state = 0; /* big: kept near the selection only */
         if (i >= lo - 10 && i <= hi + 10) continue;
         if (it->tex) SDL_DestroyTexture(it->tex), it->tex = NULL, it->asked = 0;
         if (it->spine) SDL_DestroyTexture(it->spine), it->spine = NULL;
@@ -313,10 +336,20 @@ static void want_visible(Tab *t) {
             if (i < 0 || i >= t->n || (k && !d)) continue;
             Item *it = &t->items[i];
             if (it->art && !it->tex && !it->asked) {
-                covers_want(it->key, it->id, THUMB_W, 0);
+                covers_want(it->key, it->id, THUMB_W, 0, it->art_v);
                 it->asked = 1;
             }
         }
+}
+
+/* want_sharp asks for the selected box's cover at full size, once the shelf has come to rest on it
+ * and its small cover shows there is more to be had. */
+static void want_sharp(Tab *t) {
+    if (t->sel >= t->n) return;
+    Item *it = &t->items[t->sel];
+    if (!it->tex || it->sharp_state || it->tw < THUMB_W) return;
+    covers_want(SHARP_KEY + it->key, it->id, SHARP_W, 0, it->art_v);
+    it->sharp_state = 1;
 }
 
 /* ---------- drawing ---------- */
@@ -546,6 +579,26 @@ static void draw_spine(SDL_Renderer *ren, Item *it, const P3 *f, float bx, float
     face_part(ren, f, u0, v0, u1, v1, bx, bz, ry, it->spine, uv, k);
 }
 
+/* a cover on a face of the box: it fills the face, cropped to it; one much wider than the face (a
+ * square icon: Switch, PS4 packages) sits whole across the middle. The PC sends a back cover in
+ * its front's shape, so both sides of a box come out the same size. */
+static void draw_face_cover(SDL_Renderer *ren, const P3 *face, SDL_Texture *tex, int tw, int th, float fa, float bx, float bz, float ry,
+                       SDL_Color cs, SDL_Color k) {
+    float ta = (float)tw / th;
+    if (ta > fa * 1.2f) {
+        float vh = fa / ta * .95f;
+        face_part(ren, face, 0, 0, 1, 1, bx, bz, ry, NULL, NULL, cs);
+        SDL_FPoint uv[4] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+        face_part(ren, face, .025f, .5f - vh / 2, .975f, .5f + vh / 2, bx, bz, ry, tex, uv, k);
+    } else {
+        float u0 = 0, u1 = 1, v0 = 0, v1 = 1;
+        if (ta > fa) u0 = (1 - fa / ta) / 2, u1 = 1 - u0;
+        else v0 = (1 - ta / fa) / 2, v1 = 1 - v0;
+        SDL_FPoint uv[4] = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
+        face_part(ren, face, 0, 0, 1, 1, bx, bz, ry, tex, uv, k); /* the cover is the whole face */
+    }
+}
+
 static void draw_box(SDL_Renderer *ren, Item *it, const Tab *t, float bx, float bz, float ry, float h, int sel, int lit) {
     float w = h * tab_ratio_of(it, t), d = w * .12f, X = w / 2, Y = h / 2, Z = d / 2;
     P3 front[4] = {{-X, -Y, Z}, {X, -Y, Z}, {X, Y, Z}, {-X, Y, Z}};
@@ -556,8 +609,7 @@ static void draw_box(SDL_Renderer *ren, Item *it, const Tab *t, float bx, float 
     if (facing(left, bx, bz, ry)) draw_spine(ren, it, left, bx, bz, ry, lit, band);
     if (facing(right, bx, bz, ry)) draw_spine(ren, it, right, bx, bz, ry, lit, band);
     if (facing(back, bx, bz, ry) && it->back) { /* the back cover (Settings → Download back covers on the PC) */
-        SDL_FPoint uv[4] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
-        face_part(ren, back, 0, 0, 1, 1, bx, bz, ry, it->back, uv, (SDL_Color){lit, lit, lit, 255});
+        draw_face_cover(ren, back, it->back, it->bkw, it->bkh, w / h, bx, bz, ry, cs, (SDL_Color){lit, lit, lit, 255});
     } else if (facing(back, bx, bz, ry)) {
         face_part(ren, back, 0, 0, 1, 1, bx, bz, ry, NULL, NULL, cs);
         face_part(ren, back, .06f, .06f, .94f, .94f, bx, bz, ry, NULL, NULL, shade((SDL_Color){30, 31, 40, 255}, lit * 100 / 255));
@@ -576,20 +628,8 @@ static void draw_box(SDL_Renderer *ren, Item *it, const Tab *t, float bx, float 
     if (!it->tex) face_part(ren, front, 0, 0, 1, 1, bx, bz, ry, NULL, NULL, cs);
     SDL_Color k = {lit, lit, lit, 255};
     if (it->tex) {
-        /* the cover fills the face, cropped to it; a square icon (Switch, PS4 packages) sits whole */
-        float fa = w / h, ta = (float)it->tw / it->th;
-        if (ta > fa * 1.2f) {
-            float vh = fa / ta * .95f;
-            face_part(ren, front, 0, 0, 1, 1, bx, bz, ry, NULL, NULL, cs);
-            SDL_FPoint uv[4] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
-            face_part(ren, front, .025f, .5f - vh / 2, .975f, .5f + vh / 2, bx, bz, ry, it->tex, uv, k);
-        } else {
-            float u0 = 0, u1 = 1, v0 = 0, v1 = 1;
-            if (ta > fa) u0 = (1 - fa / ta) / 2, u1 = 1 - u0;
-            else v0 = (1 - ta / fa) / 2, v1 = 1 - v0;
-            SDL_FPoint uv[4] = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
-            face_part(ren, front, 0, 0, 1, 1, bx, bz, ry, it->tex, uv, k); /* the cover is the whole face */
-        }
+        if (sel && it->sharp) draw_face_cover(ren, front, it->sharp, it->shw, it->shh, w / h, bx, bz, ry, cs, k);
+        else draw_face_cover(ren, front, it->tex, it->tw, it->th, w / h, bx, bz, ry, cs, k);
     } else {
         face_part(ren, front, .025f, .018f, .975f, .982f, bx, bz, ry, NULL, NULL, shade(mix(band, BG, 45), lit * 100 / 255));
         if (sel) {
@@ -980,6 +1020,8 @@ int main(int argc, char **argv) {
 
     int have_url = read_url() == 0;
     if (have_url) covers_init(g_host, g_port);
+    /* something on screen at once: the PC can take a moment to answer, and a black screen looks broken */
+    if (have_url) draw_message(ren, "Connecting to Game Shop on your PC…", g_url);
     int connected = have_url && load_state() == 0;
     fprintf(stderr, "Game Shop: PC %s %s\n", have_url ? g_url : "(no url.txt)", connected ? "answered" : "did not answer");
     if (connected) open_tab(0);
@@ -1057,7 +1099,7 @@ int main(int argc, char **argv) {
             } else if (button == SDL_CONTROLLER_BUTTON_X) {
                 g_flip_to = g_flip_to ? 0 : 180;
                 Item *it = t->sel < t->n ? &t->items[t->sel] : NULL;
-                if (it && !it->back_state) covers_want(-it->key, it->id, THUMB_W, 1), it->back_state = 1;
+                if (it && !it->back_state) covers_want(-it->key, it->id, SHARP_W, 1, it->art_v), it->back_state = 1;
             } else if (button == SDL_CONTROLLER_BUTTON_A && t->sel < t->n) {
                 draw_message(ren, "Opening…", t->items[t->sel].title);
                 if (detail.it.tex) SDL_DestroyTexture(detail.it.tex);
@@ -1065,7 +1107,7 @@ int main(int argc, char **argv) {
                 detail.it.key = -g_gen; /* never a grid key */
                 if (load_detail(&detail, t->items[t->sel].id) == 0) {
                     in_detail = 1;
-                    if (detail.it.art) covers_want(detail.it.key, detail.it.id, DETAIL_W, 0);
+                    if (detail.it.art) covers_want(detail.it.key, detail.it.id, DETAIL_W, 0, detail.it.art_v);
                 } else {
                     toast(error_text());
                 }
@@ -1080,6 +1122,7 @@ int main(int argc, char **argv) {
         if (g_toast[0] && now >= g_toast_until) g_toast[0] = 0, dirty = 1;
         moving = !in_detail && g_tabs[g_tab].kind != TAB_DOWNLOADS && shelf_step(&g_tabs[g_tab]);
         if (moving) dirty = 1;
+        else if (!in_detail && g_tabs[g_tab].kind != TAB_DOWNLOADS) want_sharp(&g_tabs[g_tab]);
         if (!dirty) continue;
         dirty = 0;
 

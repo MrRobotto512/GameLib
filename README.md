@@ -48,9 +48,13 @@ wheel browses too, and clicking a box goes to it (or flips it, once it's selecte
 
 **Back covers.** Settings → **Download back covers** fetches the
 [LaunchBox Games Database](https://gamesdb.launchbox-app.com/) once (a 110 MB download, boiled down to
-a small index of its "Box - Back" scans in `%LOCALAPPDATA%\GameShop\launchbox`), then the back of
-every game in the library. A flipped box on the shelf (web and PS5 app) shows it. Press the button
-again after adding games; the database itself is fetched again after two months.
+a small index of its box scans in `%LOCALAPPDATA%\GameShop\launchbox`), then the back of every game
+in the library and the front of the same box. A flipped box on the shelf (web and PS5 app) shows
+the back. The two sides come from one region's box wherever one has both, and the back is served in
+its front's shape, so they are the same edition, the same size and equally sharp; the scanned front
+replaces the smaller cover the store had. The selected box is drawn from a full-size picture (up to
+1200 px wide). Press the button again after adding games; the database itself is fetched again
+after two months.
 
 **Game Shop on the PS5 home screen.** Settings has **Put a Game Shop tile on the PS5**: it copies
 the Game Shop PS5 app over FTP to `/data/homebrew/PPSA87500/`, with this PC's store address in
