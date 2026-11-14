@@ -29,9 +29,12 @@
   function shapeOf(item) {
     var sys = G.sysOf(item.system), c = (item.case || sys.case || 'generic').split(' ')[0];
     if (c.indexOf('cart-') === 0) c = BOX[c] || 'box-tall';
-    return SHAPES[c] || SHAPES.generic;
+    var shape = SHAPES[c] || SHAPES.generic;
+    return sys.ratio ? [sys.ratio, shape[1]] : shape;      // measured from the library's own box scans
   }
-  function artURL(item, w) { return '/art/' + item.id + '?w=' + w + '&v=' + encodeURIComponent(G.version()); }
+  // art_v changes when the game's cover does (a sharper scan arrived), so the browser asks again
+  function artURL(item, w, kind) { return '/art/' + item.id + '?w=' + w + (kind ? '&kind=' + kind : '') + '&v=' + encodeURIComponent(G.version()) + '.' + (item.art_v || 0); }
+  var SHARP = 1200;   // the selected box is drawn large: its two sides are asked for at full size
 
   // ---- sizes: the box height follows the screen, like Boxshelf's measure() ----
   function measure() {
@@ -72,10 +75,23 @@
     s.backAsked = true;
     var img = new Image();
     img.alt = ''; img.draggable = false; img.decoding = 'async';
-    img.onload = function () { var b = s.el && s.el.querySelector('.f-back'); if (b) { b.classList.add('has'); b.insertBefore(img, b.firstChild); } };
-    img.src = '/art/' + s.item.id + '?kind=back&w=600&v=' + encodeURIComponent(G.version());
+    img.onload = function () {
+      var b = s.el && s.el.querySelector('.f-back'); if (!b) return;
+      // the server sends the back in its front's shape: laid out the way the front is, the two coincide
+      b.classList.toggle('sq', img.naturalWidth > img.naturalHeight * (b.offsetWidth / (b.offsetHeight || 1)) * 1.2);
+      b.classList.add('has'); b.insertBefore(img, b.firstChild);
+    };
+    img.src = artURL(s.item, SHARP, 'back');
   }
-  function unmount(s) { if (s.el) { s.el.remove(); s.el = s.box = s.glare = null; s.backAsked = false; } }
+  // the selected box's front again, at full size (the shelf's other boxes stay small and quick)
+  function sharpen(s) {
+    if (s.sharp || !s.item.art || !s.el) return;
+    s.sharp = true;
+    var big = new Image();
+    big.onload = function () { var img = s.el && s.el.querySelector('.cover img'); if (img && big.naturalWidth > img.naturalWidth) img.src = big.src; };
+    big.src = artURL(s.item, SHARP);
+  }
+  function unmount(s) { if (s.el) { s.el.remove(); s.el = s.box = s.glare = null; s.backAsked = s.sharp = false; } }
   function draw(s) {
     if (s.drawn || !s.item.art) return;
     s.drawn = true;
@@ -124,7 +140,7 @@
     clearTimeout(landT);
     slots.forEach(function (s) { if (s.el) s.el.classList.remove('landed'); });
     var s = slots[sel];
-    if (s) landT = setTimeout(function () { if (s.el) { s.el.classList.add('landed'); drawBack(s); } }, 380);
+    if (s) landT = setTimeout(function () { if (s.el) { s.el.classList.add('landed'); sharpen(s); drawBack(s); } }, 380);
   }
 
   // ---- the title strip, the counter and the backdrop ----
@@ -243,7 +259,7 @@
       load: function () { return G.api('/api/discover').then(function (d) { return d.recent; }); } }].concat(systems.map(function (s) {
       var c = (s.case || 'generic').split(' ')[0]; if (c.indexOf('cart-') === 0) c = BOX[c] || 'box-tall';
       return { id: s.id, name: s.name, short: s.name.replace(/^(Nintendo|Sony|Sega|Microsoft) /, ''), sub: s.count + ' game' + (s.count === 1 ? '' : 's'),
-        ratio: (SHAPES[c] || SHAPES.generic)[0],
+        ratio: s.ratio || (SHAPES[c] || SHAPES.generic)[0],
         load: function () { return G.api('/api/items?system=' + encodeURIComponent(s.id) + '&status=1'); } };
     }));
     var want = sysId || G.recall('gameshop.shelf') || 'recent', idx = 0;

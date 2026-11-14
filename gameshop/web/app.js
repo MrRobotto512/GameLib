@@ -74,7 +74,7 @@
     var cls = 'case ' + c + (isCart(c) ? ' cart' : '') + (opts.spin ? ' spin' : '') + (item.art ? '' : ' noart');
     var band = kind === 'bd' || kind === 'dvd' || kind === 'mini-dvd' || kind === 'umd' || kind === 'switch';
     var gen = '<div class="gen">' + (band ? '' : '<div class="g-sys">' + esc(sys.name) + '</div>') + '<div class="g-title">' + esc(item.title) + '</div></div>';
-    var src = '/art/' + item.id + '?v=' + encodeURIComponent(state.app && state.app.version || '');   // a new release may bring better art
+    var src = '/art/' + item.id + '?v=' + encodeURIComponent(state.app && state.app.version || '') + '.' + (item.art_v || 0);   // a new release may bring better art
     var img = item.art ? '<img src="' + src + '" alt="" onload="artLoaded(this)" onerror="this.closest(\'.case\').classList.add(\'noart\');this.parentNode.innerHTML=this.nextSibling.innerHTML" loading="lazy"><template>' + gen + '</template>' : gen;
     var front = labeled ? '<div class="label">' + img + '</div>' :
       '<div class="ins">' + (item.art ? '<img class="bg" src="' + src + '" alt="" aria-hidden="true" loading="lazy">' : '') + img + '</div>' +
@@ -421,9 +421,9 @@
       if (b.state === 'downloading') return 'Downloading the LaunchBox game database… ' + b.pct + '%';
       if (b.state === 'indexing') return 'Reading the LaunchBox game database…';
       if (b.state === 'failed') return 'Failed: ' + b.error;
-      if (f.running) return 'Fetching backs: ' + f.done + ' / ' + f.total + ' (' + f.found + ' found)';
+      if (f.running) return 'Fetching box scans (back and front): ' + f.done + ' / ' + f.total + ' (' + f.found + ' found)';
       if (b.state === 'ready') return b.have + ' games have a back cover. Press again for new games.';
-      return 'From the LaunchBox Games Database: a one-time 110 MB download, then a back for each game.';
+      return 'From the LaunchBox Games Database: a one-time 110 MB download, then the back of each game and a sharp front to match.';
     }
     function backsPoll() {
       var el = $('#backs-status'); if (!el) return;

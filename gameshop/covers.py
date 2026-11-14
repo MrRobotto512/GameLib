@@ -13,6 +13,8 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from .art import open_url
+
 SERIAL_REPOS = {"psx": "psx-covers", "ps2": "ps2-covers"}
 SERIAL_URL = "https://raw.githubusercontent.com/xlenore/{repo}/main/covers/default/{serial}.jpg"
 PATCH_SITES = {"ps4": "orbispatches.com", "ps5": "prosperopatches.com"}
@@ -64,7 +66,7 @@ def patch_site_icon_urls(item: dict[str, Any], kind: str = "box", fetch=None) ->
 def _fetch(url: str) -> str | None:
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 GameShop/0.1"})
-        with urllib.request.urlopen(req, timeout=15) as r:   # noqa: S310
+        with open_url(req, 15) as r:
             return r.read(400_000).decode("utf-8", "replace") if r.status == 200 else None
     except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError):
         return None

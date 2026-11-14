@@ -1,11 +1,15 @@
-"""Back covers from the LaunchBox Games Database (gamesdb.launchbox-app.com), the source Boxshelf
-uses for backs: free, no account, nearly every console, and real scans.
+"""Box scans from the LaunchBox Games Database (gamesdb.launchbox-app.com), the source Boxshelf
+uses: free, no account, nearly every console, and real, high-resolution scans of the back and
+the front of the same box.
 
 Its whole database is one download, Metadata.zip (about 110 MB, a ~500 MB XML inside). It is
 fetched once, when Settings' "Download back covers" asks for it, and boiled down to a small
-index: for each console Game Shop knows, a game's normalised name -> its "Box - Back" image files
-by region. Images are plain URLs:
+index: for each console Game Shop knows, a game's normalised name -> its "Box - Back" and
+"Box - Front" image files by region. Images are plain URLs:
     https://images.launchbox-app.com/<FileName>
+
+A back and a front are taken from the same region's box whenever one region has both, so the two
+sides of a case are the same edition, the same shape and equally sharp.
 """
 from __future__ import annotations
 
@@ -24,9 +28,11 @@ from .switchdb import NotReady
 
 METADATA_URL = "https://gamesdb.launchbox-app.com/Metadata.zip"
 IMAGE_URL = "https://images.launchbox-app.com/{file}"
-INDEX_VERSION = 1
+INDEX_VERSION = 2          # 2: fronts beside the backs
 REFRESH_AFTER = 60 * 86400
-BACK_TYPES = ("Box - Back", "Box - Back - Reconstructed")
+TYPES = {"Box - Back": ("b", 0), "Box - Back - Reconstructed": ("b", 1),
+         "Box - Front": ("f", 0), "Box - Front - Reconstructed": ("f", 1)}     # side; 1 = a remake, used last
+KINDS = {"back": "b", "front": "f"}
 
 # Game Shop system id -> LaunchBox platform name
 PLATFORMS = {
@@ -59,12 +65,12 @@ def norm(name: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
-def build_index(xml_stream, platforms: set[str]) -> dict[str, dict[str, list[list[str]]]]:
-    """{platform: {norm(name): [[region, file], ...]}} for the backs of every game on platforms,
-    reading the XML as a stream (it is ~500 MB)."""
+def build_index(xml_stream, platforms: set[str]) -> dict[str, dict[str, dict[str, list[list[str]]]]]:
+    """{platform: {norm(name): {"b": [[region, file], ...], "f": [...]}}}: the back and front scans
+    of every game on platforms (real scans before remakes), reading the XML as a stream (~500 MB)."""
     games: dict[str, tuple[str, list[str]]] = {}         # DatabaseID -> (platform, names)
     alts: dict[str, list[str]] = {}
-    backs: dict[str, list[list[str]]] = {}
+    images: dict[str, list[tuple[int, str, str, str]]] = {}
     root = None
     for ev, el in ET.iterparse(xml_stream, events=("start", "end")):
         if ev == "start":
@@ -79,22 +85,35 @@ def build_index(xml_stream, platforms: set[str]) -> dict[str, dict[str, list[lis
         elif tag == "GameAlternateName":
             alts.setdefault(el.findtext("DatabaseID") or "", []).append(el.findtext("AlternateName") or "")
         elif tag == "GameImage":
-            if (el.findtext("Type") or "") in BACK_TYPES:
-                backs.setdefault(el.findtext("DatabaseID") or "", []).append([el.findtext("Region") or "", el.findtext("FileName") or ""])
+            side = TYPES.get(el.findtext("Type") or "")
+            if side:
+                images.setdefault(el.findtext("DatabaseID") or "", []).append(
+                    (side[1], side[0], el.findtext("Region") or "", el.findtext("FileName") or ""))
         else:
             continue
         root.clear()                                       # done with it: keep memory flat over ~500 MB
-    out: dict[str, dict[str, list[list[str]]]] = {p: {} for p in platforms}
-    for gid, files in backs.items():
+    out: dict[str, dict[str, dict[str, list[list[str]]]]] = {p: {} for p in platforms}
+    for gid, files in images.items():
         g = games.get(gid)
         if not g:
             continue
         plat, names = g
         for name in names + alts.get(gid, []):
             key = norm(name)
-            if key:
-                out[plat].setdefault(key, []).extend(f for f in files if f not in out[plat].get(key, []))
+            if not key:
+                continue
+            entry = out[plat].setdefault(key, {})
+            for _, side, region, file in sorted(files, key=lambda f: f[0]):       # stable: scans first
+                have = entry.setdefault(side, [])
+                if [region, file] not in have:
+                    have.append([region, file])
     return out
+
+
+def _by_region(files: list[list[str]], want: tuple[str, ...], first: str | None = None) -> list[list[str]]:
+    """files with region `first` leading, then the item's own regions in order, then World."""
+    return sorted(files, key=lambda f: (f[0] != first if first is not None else False, f[0] not in want,
+                                        want.index(f[0]) if f[0] in want else 0, f[0] != "World"))
 
 
 class LaunchBox:
@@ -105,7 +124,7 @@ class LaunchBox:
         self.dir = cache_dir
         self.enabled = enabled
         self.hint = hint                    # item -> other names for it (the libretro database's)
-        self.index: dict[str, dict[str, list[list[str]]]] | None = None
+        self.index: dict[str, dict[str, dict[str, list[list[str]]]]] | None = None
         self.state, self.pct, self.error = "idle", 0, ""
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
@@ -127,6 +146,13 @@ class LaunchBox:
             return False
         self.index, self.state = data["platforms"], "ready"
         return True
+
+    def outdated(self) -> bool:
+        """An index from an older Game Shop is on disk (it knows backs only): it is rebuilt at start."""
+        try:
+            return json.loads(self.index_path.read_text(encoding="utf-8")).get("version") != INDEX_VERSION
+        except (OSError, ValueError):
+            return False
 
     def status(self) -> dict[str, Any]:
         self.load()
@@ -176,10 +202,13 @@ class LaunchBox:
         if self.on_ready:
             self.on_ready()
 
-    def back_urls(self, item: dict[str, Any], kind: str) -> list[str] | None:
-        """URLs of the item's back cover, its own region first. Raises NotReady until the index
-        exists, so nothing is recorded as missing before "Download back covers" was pressed."""
-        if kind != "back":
+    def urls(self, item: dict[str, Any], kind: str) -> list[str] | None:
+        """URLs of the item's back cover (kind "back") or the front of the same box ("front"): the
+        region that has both sides first, the item's own region before others. Raises NotReady
+        until the index exists, so nothing is recorded as missing before "Download back covers"
+        was pressed."""
+        side = KINDS.get(kind)
+        if not side:
             return None
         plat = PLATFORMS.get(item.get("system", ""))
         if not plat:
@@ -190,11 +219,15 @@ class LaunchBox:
         names = [item.get("title") or "", _TAGS.sub("", Path(item.get("rel") or "").stem)]
         if self.hint:
             names += [_TAGS.sub("", n) for n in self.hint(item)]
-        files: list[list[str]] = []
+        entry: dict[str, list[list[str]]] = {}
         for n in names:
-            files = games.get(norm(n)) or []
-            if files:
+            entry = games.get(norm(n)) or {}
+            if entry:
                 break
         want = _REGIONS.get(item.get("region") or "", ("North America", "United States"))
-        files = sorted(files, key=lambda f: (f[0] not in want, want.index(f[0]) if f[0] in want else 0, f[0] != "World"))
+        other = {f[0] for f in entry.get("f" if side == "b" else "b", [])}
+        both = [f[0] for f in _by_region(entry.get(side, []), want) if f[0] in other]     # regions with both sides
+        files = _by_region(entry.get(side, []), want, both[0] if both else None)
         return [IMAGE_URL.format(file=f[1]) for f in files[:4]]
+
+    back_urls = urls

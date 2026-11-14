@@ -2,6 +2,7 @@
 the ELF loader (9021) and RetroArch's WebUI (6769). Nothing here is ours on the console."""
 from __future__ import annotations
 
+import concurrent.futures
 import ftplib
 import json
 import posixpath
@@ -67,6 +68,16 @@ def _tcp_open(host: str, port: int, timeout: float = 1.5) -> bool:
         return False
 
 
+def _tcp_open_many(host: str, ports, timeout: float = 1.5) -> dict[int, bool]:
+    """Which of ports answer, asked all at once: a PS5 that is off (or a port its firewall drops)
+    costs one timeout, not one for every port."""
+    ports = list(dict.fromkeys(ports))
+    if not ports:
+        return {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(ports)) as ex:
+        return dict(zip(ports, ex.map(lambda p: _tcp_open(host, p, timeout), ports)))
+
+
 def _http_get(url: str, timeout: float = 3.0) -> str:
     with urllib.request.urlopen(url, timeout=timeout) as r:   # noqa: S310 (LAN address from settings)
         return r.read(65536).decode("utf-8", "replace")
@@ -81,10 +92,8 @@ class PS5Client:
         """The FTP port to use: the configured one, else the first of FTP_PORTS that answers (0 if none)."""
         if self.ftp_port:
             return self.ftp_port if _tcp_open(self.host, self.ftp_port, timeout) else 0
-        for p in FTP_PORTS:
-            if _tcp_open(self.host, p, timeout):
-                return p
-        return 0
+        opened = _tcp_open_many(self.host, FTP_PORTS, timeout)
+        return next((p for p in FTP_PORTS if opened[p]), 0)
 
     # ---- health ---------------------------------------------------------------
     def health(self) -> Health:
@@ -92,17 +101,18 @@ class PS5Client:
         if not self.host:
             h.hints.append("Enter the PS5's address in Settings.")
             return h
-        h.ftp_port = self.find_ftp_port()
+        ftp_ports = [self.ftp_port] if self.ftp_port else list(FTP_PORTS)
+        opened = _tcp_open_many(self.host, [*ftp_ports, ELF_PORT, DPI1_PORT, DPI2_PORT, RA_PORT])
+        h.ftp_port = next((p for p in ftp_ports if opened[p]), 0)
         h.ftp = bool(h.ftp_port)
-        h.elfldr = _tcp_open(self.host, ELF_PORT)
-        h.dpi1 = _tcp_open(self.host, DPI1_PORT)
-        if _tcp_open(self.host, DPI2_PORT):
+        h.elfldr = opened[ELF_PORT]
+        h.dpi1 = opened[DPI1_PORT]
+        if opened[DPI2_PORT]:
             try:
                 h.dpi2 = "etaHEN" in _http_get(f"http://{self.host}:{DPI2_PORT}/")
             except OSError:
                 h.dpi2 = False
-        if _tcp_open(self.host, RA_PORT):
-            h.retroarch = True
+        h.retroarch = opened[RA_PORT]
         if not h.online:
             h.hints.append("Nothing answered. Is the PS5 on, jailbroken, and etaHEN loaded?")
         else:
