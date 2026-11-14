@@ -43,8 +43,8 @@ typedef struct {
     SDL_Color color;
     int art;
     long key;
-    SDL_Texture *tex, *spine; /* the cover, and the title as the spine prints it */
-    int tw, th, asked, sw, sh;
+    SDL_Texture *tex, *spine, *back; /* the cover, the title as the spine prints it, the back cover */
+    int tw, th, asked, sw, sh, back_state; /* back_state: 0 not asked, 1 asked, 2 there is none */
 } Item;
 
 enum { TAB_RECENT, TAB_SYSTEM, TAB_DOWNLOADS };
@@ -160,6 +160,7 @@ static void free_items(Tab *t) {
     for (int i = 0; i < t->n; i++) {
         if (t->items[i].tex) SDL_DestroyTexture(t->items[i].tex);
         if (t->items[i].spine) SDL_DestroyTexture(t->items[i].spine);
+        if (t->items[i].back) SDL_DestroyTexture(t->items[i].back);
     }
     free(t->items);
     t->items = NULL;
@@ -264,6 +265,17 @@ static int take_covers(SDL_Renderer *ren, Item *detail) {
     int any = 0;
     while (covers_take(&key, &s)) {
         Item *it = NULL;
+        if (key < -1000000000L) { /* a back cover: its item's key, negated */
+            long k = -key, tab = (k / 100000L) % 10000L, idx = k % 100000L;
+            if (k / 1000000000L == g_gen && tab < g_ntabs && idx < g_tabs[tab].n) {
+                Item *b = &g_tabs[tab].items[idx];
+                if (s && !b->back && (b->back = SDL_CreateTextureFromSurface(ren, s))) SDL_SetTextureBlendMode(b->back, SDL_BLENDMODE_NONE);
+                if (!s) b->back_state = 2;
+                any = 1;
+            }
+            if (s) SDL_FreeSurface(s);
+            continue;
+        }
         if (detail && key == detail->key) it = detail;
         long tab = (key / 100000L) % 10000L, idx = key % 100000L;
         if (!it && key > 0 && key / 1000000000L == g_gen && tab < g_ntabs && idx < g_tabs[tab].n) it = &g_tabs[tab].items[idx];
@@ -293,6 +305,7 @@ static void want_visible(Tab *t) {
         if (i >= lo - 10 && i <= hi + 10) continue;
         if (it->tex) SDL_DestroyTexture(it->tex), it->tex = NULL, it->asked = 0;
         if (it->spine) SDL_DestroyTexture(it->spine), it->spine = NULL;
+        if (it->back) SDL_DestroyTexture(it->back), it->back = NULL, it->back_state = 0;
     }
     for (int d = hi - t->sel; d >= 0; d--)
         for (int k = 0; k < 2; k++) {
@@ -300,7 +313,7 @@ static void want_visible(Tab *t) {
             if (i < 0 || i >= t->n || (k && !d)) continue;
             Item *it = &t->items[i];
             if (it->art && !it->tex && !it->asked) {
-                covers_want(it->key, it->id, THUMB_W);
+                covers_want(it->key, it->id, THUMB_W, 0);
                 it->asked = 1;
             }
         }
@@ -542,7 +555,10 @@ static void draw_box(SDL_Renderer *ren, Item *it, const Tab *t, float bx, float 
     SDL_Color band = it->color.a ? it->color : GOLD, cs = shade((SDL_Color){20, 20, 24, 255}, lit * 100 / 255);
     if (facing(left, bx, bz, ry)) draw_spine(ren, it, left, bx, bz, ry, lit, band);
     if (facing(right, bx, bz, ry)) draw_spine(ren, it, right, bx, bz, ry, lit, band);
-    if (facing(back, bx, bz, ry)) {
+    if (facing(back, bx, bz, ry) && it->back) { /* the back cover (Settings → Download back covers on the PC) */
+        SDL_FPoint uv[4] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+        face_part(ren, back, 0, 0, 1, 1, bx, bz, ry, it->back, uv, (SDL_Color){lit, lit, lit, 255});
+    } else if (facing(back, bx, bz, ry)) {
         face_part(ren, back, 0, 0, 1, 1, bx, bz, ry, NULL, NULL, cs);
         face_part(ren, back, .06f, .06f, .94f, .94f, bx, bz, ry, NULL, NULL, shade((SDL_Color){30, 31, 40, 255}, lit * 100 / 255));
     }
@@ -1040,6 +1056,8 @@ int main(int argc, char **argv) {
                 move_shelf(t, button);
             } else if (button == SDL_CONTROLLER_BUTTON_X) {
                 g_flip_to = g_flip_to ? 0 : 180;
+                Item *it = t->sel < t->n ? &t->items[t->sel] : NULL;
+                if (it && !it->back_state) covers_want(-it->key, it->id, THUMB_W, 1), it->back_state = 1;
             } else if (button == SDL_CONTROLLER_BUTTON_A && t->sel < t->n) {
                 draw_message(ren, "Opening…", t->items[t->sel].title);
                 if (detail.it.tex) SDL_DestroyTexture(detail.it.tex);
@@ -1047,7 +1065,7 @@ int main(int argc, char **argv) {
                 detail.it.key = -g_gen; /* never a grid key */
                 if (load_detail(&detail, t->items[t->sel].id) == 0) {
                     in_detail = 1;
-                    if (detail.it.art) covers_want(detail.it.key, detail.it.id, DETAIL_W);
+                    if (detail.it.art) covers_want(detail.it.key, detail.it.id, DETAIL_W, 0);
                 } else {
                     toast(error_text());
                 }

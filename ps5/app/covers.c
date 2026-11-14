@@ -18,7 +18,7 @@
 typedef struct {
     long key;
     char id[128];
-    int width;
+    int width, back;
 } Job;
 
 typedef struct {
@@ -40,7 +40,7 @@ static void cache_path(const Job *j, char *out, size_t n) {
     size_t i = 0;
     for (const char *c = j->id; *c && i < sizeof safe - 1; c++) safe[i++] = isalnum((unsigned char)*c) ? *c : '_';
     safe[i] = 0;
-    snprintf(out, n, CACHE_DIR "/%s.w%d.img", safe, j->width);
+    snprintf(out, n, CACHE_DIR "/%s.w%d%s.img", safe, j->width, j->back ? ".back" : "");
 }
 
 static char *read_file(const char *p, size_t *len) {
@@ -92,7 +92,7 @@ static int worker(void *arg) {
         size_t len = 0;
         char *bytes = read_file(file, &len);
         if (!bytes) {
-            snprintf(path, sizeof path, "/art/%s?w=%d", j.id, j.width);
+            snprintf(path, sizeof path, "/art/%s?w=%d%s", j.id, j.width, j.back ? "&kind=back" : "");
             if ((bytes = gs_fetch(host, port, path, &len)) && len > 0) write_cache(file, bytes, len, me);
         }
         SDL_Surface *s = bytes ? IMG_Load_RW(SDL_RWFromConstMem(bytes, (int)len), 1) : NULL;
@@ -116,7 +116,7 @@ void covers_init(const char *h, int p) {
     for (int i = 0; i < WORKERS; i++) SDL_DetachThread(SDL_CreateThread(worker, "gs-covers", (void *)(intptr_t)i));
 }
 
-void covers_want(long key, const char *item_id, int width) {
+void covers_want(long key, const char *item_id, int width, int back) {
     SDL_LockMutex(mu);
     if (nwanted == capwanted) {
         Job *g = realloc(wanted, (capwanted = capwanted * 2 + 64) * sizeof *wanted);
@@ -129,6 +129,7 @@ void covers_want(long key, const char *item_id, int width) {
     Job *j = &wanted[nwanted++];
     j->key = key;
     j->width = width;
+    j->back = back;
     snprintf(j->id, sizeof j->id, "%s", item_id);
     SDL_CondSignal(cond);
     SDL_UnlockMutex(mu);

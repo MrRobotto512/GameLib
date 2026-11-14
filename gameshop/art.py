@@ -86,8 +86,10 @@ class ArtCache:
         self.fallbacks: list[Callable[[dict[str, Any], str], str | list[str] | None]] = []
         # item -> extra names to try on libretro-thumbnails (the database's own name for the game)
         self.name_hint: Callable[[dict[str, Any]], list[str]] | None = None
+        # back covers: libretro has none, and the front sources must not be asked for them
+        self.backs: list[Callable[[dict[str, Any], str], str | list[str] | None]] = []
 
-    KINDS = {"box": "Named_Boxarts", "snap": "Named_Snaps", "title": "Named_Titles"}
+    KINDS = {"box": "Named_Boxarts", "snap": "Named_Snaps", "title": "Named_Titles", "back": None}
 
     def path_for(self, item_id: str, kind: str = "box") -> Path:
         return self.dir / (f"{item_id}.png" if kind == "box" else f"{item_id}.{kind}.png")
@@ -128,6 +130,8 @@ class ArtCache:
     def fetch(self, item: dict[str, Any], kind: str = "box") -> Path | None:
         key = item["id"] if kind == "box" else f"{item['id']}:{kind}"
         system = self.systems.get(item["system"])
+        if kind == "back":
+            return self._fetch_back(item, key) if system else None
         if not system or kind not in self.KINDS or (not system.thumbs and not self.providers and not self.fallbacks):
             self.db.set_art(key, "missing")
             return None
@@ -161,6 +165,23 @@ class ArtCache:
                 return self._store(item, key, kind, found)
             if not unsure:
                 self.db.set_art(key, "missing")
+            return None
+        finally:
+            with self._lock:
+                self._inflight.discard(key)
+
+    def _fetch_back(self, item: dict[str, Any], key: str) -> Path | None:
+        with self._lock:
+            if key in self._inflight:
+                return None
+            self._inflight.add(key)
+        try:
+            found = self._from(self.backs, item, "back")
+            if found is None:
+                return None                          # the index is not there yet: nothing to record
+            if found:
+                return self._store(item, key, "back", found)
+            self.db.set_art(key, "missing")
             return None
         finally:
             with self._lock:

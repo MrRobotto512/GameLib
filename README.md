@@ -46,6 +46,12 @@ selected one facing you and the rest standing spine-out on either side, in the s
 change console, Enter opens the game's page, F flips the box, Esc goes back to the store. The mouse
 wheel browses too, and clicking a box goes to it (or flips it, once it's selected).
 
+**Back covers.** Settings → **Download back covers** fetches the
+[LaunchBox Games Database](https://gamesdb.launchbox-app.com/) once (a 110 MB download, boiled down to
+a small index of its "Box - Back" scans in `%LOCALAPPDATA%\GameShop\launchbox`), then the back of
+every game in the library. A flipped box on the shelf (web and PS5 app) shows it. Press the button
+again after adding games; the database itself is fetched again after two months.
+
 **Game Shop on the PS5 home screen.** Settings has **Put a Game Shop tile on the PS5**: it copies
 the Game Shop PS5 app over FTP to `/data/homebrew/PPSA87500/`, with this PC's store address in
 `url.txt` beside it. Shadow Mount+ adds it to the home screen on its next scan (every 15 s, but not

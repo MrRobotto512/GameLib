@@ -56,7 +56,7 @@
     el.style.setProperty('--glow', sys.color || '#88a');
     el.innerHTML = '<div class="box"><div class="face f-front"><div class="cover' + (it.art ? '' : ' noart') + '"><span>' + G.esc(it.title) + '</span></div>' +
       '<div class="dim"></div><div class="glare"></div><div class="sheen"></div></div>' +
-      '<div class="face f-back"><div class="back-in"><b>' + G.esc(it.title) + '</b><span>' + G.esc(sys.name) + '</span></div></div>' +
+      '<div class="face f-back"><div class="back-in"><b>' + G.esc(it.title) + '</b><span>' + G.esc(sys.name) + '</span></div><div class="dim"></div></div>' +
       spine('f-left', sys, it) + spine('f-right', sys, it) + '</div>';
     el.addEventListener('click', function () { if (s.i === sel) flip(); else go(s.i); });
     var next = null;
@@ -66,7 +66,16 @@
     el.style.transition = 'none';
     requestAnimationFrame(function () { requestAnimationFrame(function () { if (s.el === el) el.style.transition = ''; }); });
   }
-  function unmount(s) { if (s.el) { s.el.remove(); s.el = s.box = s.glare = null; } }
+  // the back cover (Settings → Download back covers), asked for once the box is selected
+  function drawBack(s) {
+    if (s.backAsked || !s.el) return;
+    s.backAsked = true;
+    var img = new Image();
+    img.alt = ''; img.draggable = false; img.decoding = 'async';
+    img.onload = function () { var b = s.el && s.el.querySelector('.f-back'); if (b) { b.classList.add('has'); b.insertBefore(img, b.firstChild); } };
+    img.src = '/art/' + s.item.id + '?kind=back&w=600&v=' + encodeURIComponent(G.version());
+  }
+  function unmount(s) { if (s.el) { s.el.remove(); s.el = s.box = s.glare = null; s.backAsked = false; } }
   function draw(s) {
     if (s.drawn || !s.item.art) return;
     s.drawn = true;
@@ -115,7 +124,7 @@
     clearTimeout(landT);
     slots.forEach(function (s) { if (s.el) s.el.classList.remove('landed'); });
     var s = slots[sel];
-    if (s) landT = setTimeout(function () { if (s.el) s.el.classList.add('landed'); }, 380);
+    if (s) landT = setTimeout(function () { if (s.el) { s.el.classList.add('landed'); drawBack(s); } }, 380);
   }
 
   // ---- the title strip, the counter and the backdrop ----
@@ -152,7 +161,7 @@
     sel = i; flipped = false; layout(false);
     shelves[cur].sel = sel;
   }
-  function flip() { flipped = !flipped; var s = slots[sel]; if (s) s.box.style.transform = 'rotateY(' + (flipped ? 180 : 0) + 'deg)'; }
+  function flip() { flipped = !flipped; var s = slots[sel]; if (s) drawBack(s); if (s) s.box.style.transform = 'rotateY(' + (flipped ? 180 : 0) + 'deg)'; }
   function open() { var s = slots[sel]; if (s) location.hash = '#/game/' + s.item.id; }
 
   function tabs() {
